@@ -1,0 +1,60 @@
+export type TripMode = 'road' | 'competition';
+
+export type IncidentCategory =
+  | 'braking'
+  | 'lateral'
+  | 'acceleration'
+  | 'combined_brake'
+  | 'combined_traction'
+  | 'bump'
+  | 'slip';
+
+export interface TelemetryPointRaw {
+  timestamp: string | number;
+  lat: number;
+  lon: number;
+  speed: number;          // km/h
+  accelX: number;         // g (bruto do sensor)
+  accelY: number;         // g (bruto do sensor)
+  accelZ: number;         // g (bruto do sensor)
+  gyroZ: number;          // °/s
+  gyroX?: number;
+  gyroY?: number;
+  alt?: number;
+  extras?: Record<string, number>;
+}
+
+export interface VehicleSpecs {
+  id?: number;
+  name: string;
+  grossMassKg: number;
+  curbMassKg: number;
+  payloadKg: number;
+  powerHp: number;
+  wheelbaseL: number;       // m
+  trackF: number;           // m
+  trackR: number;           // m
+  cgHeight: number;         // m
+  frontWeightRatio: number; // lr / L
+  frontRollShare: number;   // lambda_roll,f
+  tireSize: string;
+  tireRadiusM: number;
+  surfaceGrip: number;
+}
+
+export interface LoadTransferResult {
+  fzFL: number;
+  fzFR: number;
+  fzRL: number;
+  fzRR: number;
+  steerRad: number;
+  rollRad: number;
+  pitchRad: number;
+}
+
+export interface KammLimits {
+  accelLimit: number;
+  brakeLimit: number;
+  latLimit: number;
+  gripLimitG: number;
+}
