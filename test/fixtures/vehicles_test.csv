@@ -1,0 +1,5 @@
+id,make,model,serie,body_style,segment,year_start,year_end,production_years,cylinders,displacement_cc,power_hp,power_rpm,power_kw,torque_nm,torque_rpm,fuel_type,drivetrain,gearbox,top_speed_kmh,accel_0_100_s,weight_kg,gross_weight_kg,drag_cd,tire_size,spec_summary
+1,Volkswagen,Golf,GTI,Hatchback,C,2020,,2020-,4,1984,245,5000,180.0,370,1600,Petrol,FWD,7-speed DSG,250,6.2,1463,1930,0.31,225/40R18,"Golf GTI 2.0 TSI"
+2,BMW,3 Series,330i,Sedan,D,2019,2022,2019-2022,4,1998,258,5000,190.0,400,1550,Petrol,RWD,8-speed Steptronic,250,5.8,1545,2060,0.26,225/45R18,"BMW 330i G20"
+3,Subaru,WRX,STI,Sedan,C,2018,2021,2018-2021,4,2457,300,6000,221.0,407,4000,Petrol,AWD,6-speed Manual,255,5.2,1535,2000,0.34,245/40R18,"WRX STI AWD"
+4,Generic,MissingData,,,,,,,,,100,,,150,,,FWD,,,,1200,,,"205/55R16",
