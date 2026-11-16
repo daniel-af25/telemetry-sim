@@ -1,41 +1,65 @@
-# 1. Dependências de pacotes
+# ==============================================================================
+# DEPENDÊNCIAS DE PACOTES E RUNTIME
+# ==============================================================================
 node_modules/
 .pnp
 .pnp.js
 
-# 2. Saídas de compilação e bundles
+# ==============================================================================
+# BUILDS, BUNDLES E DISTRIBUIÇÃO
+# ==============================================================================
 dist/
 dist-ssr/
 build/
-*.local
+*.tsbuildinfo
 
-# 3. Relatórios de testes e telemetria local
+# ==============================================================================
+# TESTES, COVERAGE E TELEMETRIA DE LOGS
+# ==============================================================================
 coverage/
 .nyc_output/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
-# 4. Variáveis de ambiente e segredos locais
+# Ficheiros brutos e logs temporários de telemetria local
+*.raw.json
+*.dump.csv
+temp/
+tmp/
+
+# ==============================================================================
+# VARIÁVEIS DE AMBIENTE E SEGREDOS LOCAIS
+# ==============================================================================
 .env
 .env.local
 .env.*.local
 *.pem
+*.key
 
-# 5. Configurações de IDE / Editores de código
+# ==============================================================================
+# CONFIGURAÇÕES DE IDE E SISTEMA OPERATIVO
+# ==============================================================================
+# VS Code (ignora histórico local e caches, mas mantém configs essenciais se existirem)
 .vscode/*
-!.vscode/extensions.json
 !.vscode/settings.json
-.idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
 
-# 6. Ficheiros temporários de sistema operativo
+# Sistema Operativo (Windows & Unix)
 .DS_Store
 Thumbs.db
 ehthumbs.db
 [Dd]esktop.ini
+
+# ==============================================================================
+# EXCEÇÕES EXPLÍCITAS (NUNCA IGNORAR)
+# ==============================================================================
+!README.md
+!GUIA_GIT_WORKFLOW.md
+
+agents.md

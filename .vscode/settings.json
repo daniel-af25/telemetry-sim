@@ -1,0 +1,9 @@
+{
+  "antigravity.enableInlineDiff": true,
+  "antigravity.autoAcceptOnChat": false,
+  "antigravity.autoOpenFiles": true,
+  "git.enableSmartCommit": false,
+  "git.confirmSync": true,
+  "editor.formatOnSave": true,
+  "js/ts.tsdk.path": "node_modules/typescript/lib"
+}
