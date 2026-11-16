@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import { calculateTireRadius, computeDynamicKammLimits } from '../src/core/kamm';
-import { VehicleSpecs } from '../src/core/types';
+import type { VehicleSpecs } from '../src/core/types';
 
 test('Kamm: Cálculo do raio do pneu comercial', () => {
   const r = calculateTireRadius('195/55 R16');
