@@ -183,9 +183,13 @@ export function calibrateSamples(
     biasGyroZ = mean(tareGyroZ);
   } else {
     // Case B: Moving median tare on steady straight segments (anti-ramp regression 175207)
+    // Prefer startup window (first 30 s) when >= 10 steady straight samples exist so
+    // later hills do not bias the initial pitch tare.
     method = 'moving_median_tare';
-    const pitchSamples: number[] = [];
-    const rollSamples: number[] = [];
+    const startupPitchSamples: number[] = [];
+    const startupRollSamples: number[] = [];
+    const allPitchSamples: number[] = [];
+    const allRollSamples: number[] = [];
 
     for (let i = 1; i < rawPoints.length; i++) {
       const curr = rawPoints[i];
@@ -202,13 +206,22 @@ export function calibrateSamples(
 
       if (u > 4.0 && Math.abs(curr.gyroZ) < 3.0 && Math.abs(duDt) < 1.5) {
         const omegaZRad = curr.gyroZ * DEG_TO_RAD;
-        pitchSamples.push(curr.accelY - duDt / GRAVITY);
-        rollSamples.push(curr.accelX + (u * omegaZRad) / GRAVITY);
+        const pitchVal = curr.accelY - duDt / GRAVITY;
+        const rollVal = curr.accelX + (u * omegaZRad) / GRAVITY;
+        allPitchSamples.push(pitchVal);
+        allRollSamples.push(rollVal);
+
+        const elapsed = curr.elapsedSec ?? i * 0.2;
+        if (elapsed <= MAX_TARE_WINDOW_SEC) {
+          startupPitchSamples.push(pitchVal);
+          startupRollSamples.push(rollVal);
+        }
       }
     }
 
-    initialPitchBiasY = median(pitchSamples);
-    biasRollX = median(rollSamples);
+    const useStartup = startupPitchSamples.length >= MIN_TARE_SAMPLES;
+    initialPitchBiasY = median(useStartup ? startupPitchSamples : allPitchSamples);
+    biasRollX = median(useStartup ? startupRollSamples : allRollSamples);
   }
 
   // Dynamic road-grade tracking (gap-safe) + single ISO 8855 / SI transformation
