@@ -46,6 +46,7 @@ export interface VehicleSpecs {
   cgHeight: number;         // m
   frontWeightRatio: number; // lr / L
   frontRollShare: number;   // lambda_roll,f
+  maxSteerRad?: number;     // rad (default ~35° = 0.6109 rad)
   tireSize: string;
   tireRadiusM: number;
   surfaceGrip: number;
@@ -56,6 +57,15 @@ export interface LoadTransferResult {
   fzFR: number;
   fzRL: number;
   fzRR: number;
+  fxFL: number;
+  fxFR: number;
+  fxRL: number;
+  fxRR: number;
+  fyFL: number;
+  fyFR: number;
+  fyRL: number;
+  fyRR: number;
+  yawMoment: number;
   steerRad: number;
   rollRad: number;
   pitchRad: number;
