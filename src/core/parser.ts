@@ -1,3 +1,4 @@
+import { splitCsvLine } from './csvUtils.ts';
 import type { TelemetryPointRaw } from './types.ts';
 
 const MILLI_G_THRESHOLD = 15;
@@ -81,7 +82,7 @@ export function parseCsv(csvContent: string): ParseCsvResult {
   }
 
   const delimiter = headerLine.includes(';') && !headerLine.includes(',') ? ';' : ',';
-  const headers = headerLine.split(delimiter).map((h) => h.trim());
+  const headers = splitCsvLine(headerLine, delimiter).map((h) => h.trim());
   const colIndex = new Map<string, number>();
   const extraChannels: string[] = [];
 
@@ -96,7 +97,7 @@ export function parseCsv(csvContent: string): ParseCsvResult {
   let maxAbsAccel = 0;
 
   for (const line of dataLines) {
-    const cells = line.split(delimiter).map((c) => c.trim());
+    const cells = splitCsvLine(line, delimiter).map((c) => c.trim());
     if (cells.length < headers.length) continue;
 
     const rawTimestamp = getCell(cells, colIndex, 'timestamp');
