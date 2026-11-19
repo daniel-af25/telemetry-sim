@@ -1,3 +1,11 @@
+/**
+ * Fronteira única LABSIS -> ISO 8855 / SI (`m/s²`, `rad/s`, `m/s`).
+ * Implementa tara estacionária anti-rampa (Caso A), tara em andamento por mediana (Caso B),
+ * modo pré-compensado CSV v2.2 com diagnóstico e rastreio de declive gap-safe (`ALPHA_GRADE = 0.025`).
+ *
+ * Testes:
+ *   npx vitest run test/calibration.test.ts
+ */
 import type { CalibratedSampleIso, TelemetryPointRaw } from './types.ts';
 
 export type { CalibratedSampleIso };

@@ -1,3 +1,11 @@
+/**
+ * Transferência de carga quase-estática nas 4 rodas (`Fz`), direção cinemática Bloco C
+ * (rampa `w_u`, `max(u, 1.0)`, clamp `±maxSteerRad`), atitude ISO 8855 (`rollRad`, `pitchRad`),
+ * forças horizontais por roda (`Fx`, `Fy`) e momento de guinada (`yawMoment`, N·m).
+ *
+ * Testes:
+ *   npx vitest run test/loadTransfer.test.ts
+ */
 import type { LoadTransferResult, VehicleSpecs } from './types.ts';
 
 const GRAVITY = 9.80665;

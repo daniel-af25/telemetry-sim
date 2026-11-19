@@ -1,3 +1,10 @@
+/**
+ * Contratos de dados partilhados por todo o núcleo headless (`src/core/`).
+ * Todos os tipos a jusante de `calibration.ts` operam em SI / ISO 8855 (m, m/s, m/s², rad, rad/s, N).
+ *
+ * Verificação de tipos:
+ *   npm run typecheck
+ */
 export type TripMode = 'road' | 'competition';
 
 export type IncidentCategory =

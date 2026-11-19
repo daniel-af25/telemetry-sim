@@ -1,3 +1,12 @@
+/**
+ * Orquestrador headless ponta a ponta (`runTelemetryPipeline`):
+ * `parseCsv -> resolveVehicleSpecs -> calibrateSamples -> computeDynamicKammLimits
+ *  -> computeLoadTransfer -> detectIncidents -> computeDrivingSkillPillars -> summary`.
+ *
+ * Testes & execução CLI:
+ *   npx vitest run test/integration/pipeline.test.ts
+ *   node scripts/runPipeline.ts
+ */
 import {
   calibrateSamples,
   type CalibrationMode,

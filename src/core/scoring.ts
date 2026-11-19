@@ -1,3 +1,11 @@
+/**
+ * Motor de incidentes (7 categorias), deteção de derrapagem ISO 8855 (`evaluateIncidentSlip`),
+ * debounce temporal gap-safe (1.0 s), 5 Pilares de condução (zero dupla contagem),
+ * score global (A+..D) e regra de suficiência (`>= 1500` amostras E `>= 120 s` em movimento).
+ *
+ * Testes:
+ *   npx vitest run test/scoring.test.ts
+ */
 import { computeKammIndex } from './kamm.ts';
 import type { CalibratedSampleIso, IncidentCategory, KammLimits } from './types.ts';
 

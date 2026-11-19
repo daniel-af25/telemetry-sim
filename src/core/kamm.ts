@@ -1,3 +1,11 @@
+/**
+ * Modelo de círculo de atrito de Kamm v2.2 e parsing robusto de dimensões comerciais de pneus
+ * (staggered `//`, `ZR`, sem `R`, hífen, comercial `C`). Calcula limites dinâmicos por modo
+ * (`road` / `competition`) com clamping estrito em baixa aderência (`<= gripLimitG`) e `computeKammIndex`.
+ *
+ * Testes:
+ *   npx vitest run test/kamm.test.ts
+ */
 import type { KammLimits, TripMode, VehicleSpecs } from './types.ts';
 
 const GRAVITY_MS2 = 9.80665;

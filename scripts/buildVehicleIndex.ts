@@ -1,3 +1,12 @@
+/**
+ * Compila o catálogo bruto `data/vehicles.csv` (~25k veículos) num índice JSON compacto
+ * (`public/data/vehicles.index.json`, ~286 KB gzip) pronto para lazy-load no Web Worker.
+ * Usa apenas massa em ordem de marcha (`weight_kg`), nunca `gross_weight_kg` (GVWR).
+ *
+ * Como executar:
+ *   npm run build:catalog
+ *   node scripts/buildVehicleIndex.ts
+ */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';

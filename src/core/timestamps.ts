@@ -1,3 +1,10 @@
+/**
+ * Motor temporal: converte timestamps heterogéneos (epoch ms, epoch s, ISO-8601,
+ * segundos relativos) para milissegundos e calcula `elapsedSec`, `dtSec` e lacunas `isGap` (> 1.0 s).
+ *
+ * Testes:
+ *   npx vitest run test/timestamps.test.ts
+ */
 export const DEFAULT_DT_SEC = 0.2;
 export const DEFAULT_GAP_THRESHOLD_SEC = 1.0;
 

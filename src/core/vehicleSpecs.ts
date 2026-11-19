@@ -1,3 +1,11 @@
+/**
+ * Adaptador de especificações do veículo: combina catálogo, metadados de sessão e overrides.
+ * Calcula sempre massa em marcha real (`curbMassKg + payloadKg`, default 75 kg; nunca GVWR)
+ * e estima geometria paramétrica (entre-eixos, vias, CG, repartição de peso/roll) quando omitida.
+ *
+ * Testes:
+ *   npx vitest run test/vehicleSpecs.test.ts
+ */
 import { calculateTireRadius } from './kamm.ts';
 import type { VehicleSpecs } from './types.ts';
 import type { VehicleCatalogEntry } from './vehicleCatalog.ts';

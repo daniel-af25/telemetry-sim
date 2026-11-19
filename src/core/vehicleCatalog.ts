@@ -1,3 +1,11 @@
+/**
+ * Parser do catálogo de veículos (`data/vehicles.csv`) para um `Map<number, VehicleCatalogEntry>`
+ * indexado por `id`. Campos ausentes/inválidos são mapeados para `undefined` (nunca `NaN`).
+ *
+ * Testes & compilação de índice:
+ *   npx vitest run test/vehicleCatalog.test.ts
+ *   npm run build:catalog
+ */
 import { splitCsvLine } from './csvUtils.ts';
 
 export interface VehicleCatalogEntry {

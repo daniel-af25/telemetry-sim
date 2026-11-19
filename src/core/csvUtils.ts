@@ -1,4 +1,11 @@
 /**
+ * Utilitários RFC 4180 para parsing e serialização segura de linhas CSV.
+ * Reutilizado em `parser.ts`, `vehicleCatalog.ts` e futuramente `schema6Export.ts`.
+ *
+ * Testes relacionados:
+ *   npx vitest run test/parser.test.ts test/vehicleCatalog.test.ts
+ */
+/**
  * Splits a single CSV line into fields using `delimiter`, respecting
  * double-quoted fields (`"..."`) and escaped double quotes (`""`).
  */

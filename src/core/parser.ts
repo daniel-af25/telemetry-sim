@@ -1,3 +1,11 @@
+/**
+ * Parser multi-formato de CSVs de telemetria (`labsis_v22_export` 33 colunas e `generic_iso`).
+ * Preserva linhas de túnel (`lat/lon` vazios ou 0,0 -> `gpsValid: false`), aplica deteção robusta
+ * de mili-G (mediana |accelZ| > 100 || p95 xy > 15), filtro de picos e descoberta de `extraChannels`.
+ *
+ * Testes:
+ *   npx vitest run test/parser.test.ts
+ */
 import { splitCsvLine } from './csvUtils.ts';
 import { computeSampleTiming, parseTimestampMs } from './timestamps.ts';
 import type { TelemetryPointRaw } from './types.ts';

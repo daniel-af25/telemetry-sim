@@ -1,3 +1,15 @@
+/**
+ * CLI para executar o pipeline completo de telemetria (`runTelemetryPipeline`) sobre CSVs em `tmp/csv/`.
+ *
+ * Como executar:
+ *   node scripts/runPipeline.ts                                                  # corre todos os *.csv em tmp/csv/
+ *   node scripts/runPipeline.ts session_TRIP_20261117_172131_telemetry.csv       # ficheiro em tmp/csv/ (ou caminho completo)
+ *   node scripts/runPipeline.ts <ficheiro.csv> recalibrate_raw road              # [calibrationMode] [tripMode]
+ *
+ * Modos disponíveis:
+ *   calibrationMode: auto (default) | use_csv_compensated | recalibrate_raw
+ *   tripMode       : road (default) | competition
+ */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import type { CalibrationMode } from '../src/core/calibration.ts';
