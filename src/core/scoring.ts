@@ -49,13 +49,15 @@ export function evaluateIncidentSlip(
  * and breaking ties by `excessRatio`.
  */
 export function selectDebouncedIncident<T extends IncidentCandidate>(events: T[]): T {
-  if (events.length === 0) {
+  const first = events[0];
+  if (!first) {
     throw new Error('Cannot select debounced incident from an empty list');
   }
 
-  let worst = events[0];
+  let worst: T = first;
   for (let i = 1; i < events.length; i++) {
     const candidate = events[i];
+    if (!candidate) continue;
     if (
       candidate.points > worst.points ||
       (candidate.points === worst.points && candidate.excessRatio > worst.excessRatio)
@@ -74,21 +76,26 @@ export function clusterDebouncedIncidents<T extends IncidentCandidate & { timest
   events: T[],
   windowS: number = DEBOUNCE_WINDOW_S,
 ): T[] {
-  if (events.length === 0) {
+  const first = events[0];
+  if (!first) {
     return [];
   }
 
   const result: T[] = [];
-  let cluster: T[] = [events[0]];
+  let cluster: T[] = [first];
+  let prev: T = first;
 
   for (let i = 1; i < events.length; i++) {
-    const dt = events[i].timestamp - events[i - 1].timestamp;
+    const current = events[i];
+    if (!current) continue;
+    const dt = current.timestamp - prev.timestamp;
     if (dt > windowS) {
       result.push(selectDebouncedIncident(cluster));
-      cluster = [events[i]];
+      cluster = [current];
     } else {
-      cluster.push(events[i]);
+      cluster.push(current);
     }
+    prev = current;
   }
 
   result.push(selectDebouncedIncident(cluster));
