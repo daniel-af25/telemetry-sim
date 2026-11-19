@@ -11,16 +11,25 @@ export type IncidentCategory =
 
 export interface TelemetryPointRaw {
   timestamp: string | number;
-  lat: number;
-  lon: number;
+  lat: number | null;
+  lon: number | null;
+  gpsValid?: boolean;
   speed: number;          // km/h
   accelX: number;         // g (bruto do sensor)
   accelY: number;         // g (bruto do sensor)
   accelZ: number;         // g (bruto do sensor)
+  accelLatCompG?: number; // g (lateral compensada LABSIS v2.2)
+  accelLonCompG?: number; // g (longitudinal compensada LABSIS v2.2)
   gyroZ: number;          // °/s
   gyroX?: number;
   gyroY?: number;
   alt?: number;
+  roadGradePct?: number;
+  kammIndex?: number;
+  timestampMs?: number;
+  elapsedSec?: number;
+  dtSec?: number;
+  isGap?: boolean;
   extras?: Record<string, number>;
 }
 
