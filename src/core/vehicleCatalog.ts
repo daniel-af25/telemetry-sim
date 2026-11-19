@@ -8,7 +8,7 @@ export interface VehicleCatalogEntry {
   year_start?: number;
   year_end?: number;
   production_years?: string;
-  cylinders?: number;
+  cylinders?: string;
   displacement_cc?: number;
   power_hp?: number;
   power_rpm?: number;
@@ -31,7 +31,6 @@ const NUMERIC_FIELDS = new Set<keyof VehicleCatalogEntry>([
   'id',
   'year_start',
   'year_end',
-  'cylinders',
   'displacement_cc',
   'power_hp',
   'power_rpm',
@@ -101,7 +100,7 @@ export function parseVehiclesCsv(csvContent: string): Map<number, VehicleCatalog
       year_start: asOptionalNumber(row['year_start']),
       year_end: asOptionalNumber(row['year_end']),
       production_years: asOptionalString(row['production_years']),
-      cylinders: asOptionalNumber(row['cylinders']),
+      cylinders: asOptionalString(row['cylinders']),
       displacement_cc: asOptionalNumber(row['displacement_cc']),
       power_hp: asOptionalNumber(row['power_hp']),
       power_rpm: asOptionalNumber(row['power_rpm']),

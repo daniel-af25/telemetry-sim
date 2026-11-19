@@ -1,4 +1,4 @@
-import { TelemetryPointRaw } from '../../src/core/types';
+import type { TelemetryPointRaw } from '../../src/core/types';
 
 export function makeSyntheticTrip(): TelemetryPointRaw[] {
   const points: TelemetryPointRaw[] = [];
