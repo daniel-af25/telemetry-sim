@@ -1,4 +1,6 @@
-import type { TelemetryPointRaw } from './types.ts';
+import type { CalibratedSampleIso, TelemetryPointRaw } from './types.ts';
+
+export type { CalibratedSampleIso };
 
 const GRAVITY = 9.80665;
 const DEG_TO_RAD = Math.PI / 180;
@@ -18,22 +20,6 @@ export type CalibrationMethod =
 export interface CalibrationOptions {
   profile?: CalibrationProfile;
   mode?: CalibrationMode;
-}
-
-export interface CalibratedSampleIso {
-  ax: number;
-  ay: number;
-  az: number;
-  omegaZ: number;
-  speedMs: number;
-  roadGradePct: number;
-  pitchSlopeRad: number;
-  elapsedSec: number;
-  dtSec: number;
-  isGap: boolean;
-  lat: number | null;
-  lon: number | null;
-  gpsValid: boolean;
 }
 
 export interface CalibrationStats {

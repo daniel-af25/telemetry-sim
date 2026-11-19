@@ -77,3 +77,24 @@ export interface KammLimits {
   latLimit: number;
   gripLimitG: number;
 }
+
+export interface CalibratedSampleIso {
+  sampleIndex?: number;
+  timestamp?: string | number;
+  timestampMs?: number;
+  ax: number;
+  ay: number;
+  az: number;
+  omegaX?: number;
+  omegaY?: number;
+  omegaZ: number;
+  speedMs: number;
+  roadGradePct: number;
+  pitchSlopeRad?: number;
+  elapsedSec: number;
+  dtSec: number;
+  isGap: boolean;
+  lat: number | null;
+  lon: number | null;
+  gpsValid: boolean;
+}
