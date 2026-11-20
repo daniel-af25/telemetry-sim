@@ -1,5 +1,7 @@
 /**
- * Componente de mapa MapLibre GL 2D/3D com terreno DEM gratuito (AWS Terrarium),
+ * Componente de mapa MapLibre GL 2D/3D com 3 mapas base gratuitos (Escuro 3D, Satélite 3D
+ * Esri World Imagery, Vetorial OpenFreeMap Liberty), terreno 3D DEM (AWS Terrarium),
+ * edifícios 3D extrudidos (`fill-extrusion`), hillshade, luz e céu atmosférico,
  * fallback resiliente offline, Telemetry Ribbon quantizado (`RdYlGn_r`), camada
  * tracejada para túneis (`IS_TUNNEL_DR`) e marcador animado do veículo a 60 FPS.
  *
@@ -7,6 +9,7 @@
  *   npx vitest run test/ui/mapView.test.ts
  */
 import * as maplibregl from 'maplibre-gl';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Feature, FeatureCollection, LineString, Point } from 'geojson';
 import type { SampleFrame } from '../core/interpolator.ts';
@@ -18,16 +21,30 @@ const RAD_TO_DEG = 180 / Math.PI;
 
 const DEFAULT_CENTER: [number, number] = [-8.611, 41.1579]; // Porto, Portugal
 const DEFAULT_ZOOM = 12;
+const MIN_3D_ZOOM = 14.8;
 
-const EXTERNAL_STYLES = [
-  'https://tiles.openfreemap.org/styles/fiord',
-  'https://tiles.openfreemap.org/styles/liberty',
-] as const;
+export type BasemapMode = 'dark' | 'satellite' | 'liberty';
+
+const CARTO_DARK_STYLE_URL =
+  'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+const OPENFREEMAP_LIBERTY_STYLE_URL =
+  'https://tiles.openfreemap.org/styles/liberty';
+const OPENFREEMAP_PLANET_URL = 'https://tiles.openfreemap.org/planet';
+const OPENFREEMAP_GLYPHS_URL =
+  'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf';
+const ESRI_SATELLITE_TILES = [
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{x}/{y}',
+];
 
 const TERRARIUM_SOURCE_ID = 'terrarium-dem';
+const TERRARIUM_HILLSHADE_SOURCE_ID = 'terrarium-hillshade-src';
+const TERRARIUM_HILLSHADE_LAYER_ID = 'terrarium-hillshade';
 const TERRARIUM_TILES = [
   'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
 ];
+
+const BUILDINGS_SOURCE_ID = 'openfreemap-buildings';
+const BUILDINGS_LAYER_ID = '3d-buildings-extrusion';
 
 const RIBBON_SOURCE_ID = 'telemetry-ribbon-src';
 const RIBBON_GLOW_LAYER_ID = 'telemetry-ribbon-glow';
@@ -40,7 +57,7 @@ const VEHICLE_DOT_LAYER_ID = 'telemetry-vehicle-dot';
 const VEHICLE_ARROW_LAYER_ID = 'telemetry-vehicle-arrow';
 const VEHICLE_ARROW_IMAGE_ID = 'telemetry-vehicle-chevron';
 
-const STYLE_LOAD_TIMEOUT_MS = 4500;
+const STYLE_LOAD_TIMEOUT_MS = 5000;
 const RIBBON_BINS = 24;
 
 export interface RibbonMetricMeta {
@@ -137,7 +154,10 @@ function quantizeMetricBin(value: number, meta: RibbonMetricMeta): number {
   const span = meta.max - meta.min;
   if (span <= 0 || !Number.isFinite(value)) return 0;
   const norm = Math.max(0, Math.min(1, (value - meta.min) / span));
-  return Math.min(RDYLGN_R_PALETTE.length - 1, Math.floor(norm * (RDYLGN_R_PALETTE.length - 1) + 1e-9));
+  return Math.min(
+    RDYLGN_R_PALETTE.length - 1,
+    Math.floor(norm * (RDYLGN_R_PALETTE.length - 1) + 1e-9),
+  );
 }
 
 function isValidLatLon(lat: number, lon: number): boolean {
@@ -306,6 +326,168 @@ const OFFLINE_DARK_STYLE: maplibregl.StyleSpecification = {
   ],
 };
 
+function createSatelliteStyle(): maplibregl.StyleSpecification {
+  return {
+    version: 8,
+    name: 'Telemetry Satellite 3D (Esri + OpenFreeMap)',
+    glyphs: OPENFREEMAP_GLYPHS_URL,
+    sources: {
+      'esri-satellite': {
+        type: 'raster',
+        tiles: ESRI_SATELLITE_TILES,
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: '© Esri, Maxar, Earthstar Geographics',
+      },
+      [BUILDINGS_SOURCE_ID]: {
+        type: 'vector',
+        url: OPENFREEMAP_PLANET_URL,
+      },
+    },
+    layers: [
+      {
+        id: 'satellite-bg',
+        type: 'background',
+        paint: { 'background-color': '#070c18' },
+      },
+      {
+        id: 'esri-satellite-layer',
+        type: 'raster',
+        source: 'esri-satellite',
+        paint: {
+          'raster-fade-duration': 150,
+          'raster-contrast': 0.06,
+          'raster-saturation': 0.08,
+        },
+      },
+      {
+        id: 'satellite-road-labels',
+        type: 'symbol',
+        source: BUILDINGS_SOURCE_ID,
+        'source-layer': 'transportation_name',
+        minzoom: 13,
+        layout: {
+          'symbol-placement': 'line',
+          'text-field': ['coalesce', ['get', 'name:latin'], ['get', 'name']],
+          'text-font': ['Noto Sans Regular'],
+          'text-size': 11,
+          'text-max-angle': 30,
+        },
+        paint: {
+          'text-color': '#f8fafc',
+          'text-halo-color': 'rgba(7, 12, 24, 0.85)',
+          'text-halo-width': 1.5,
+        },
+      },
+      {
+        id: 'satellite-place-labels',
+        type: 'symbol',
+        source: BUILDINGS_SOURCE_ID,
+        'source-layer': 'place',
+        minzoom: 9,
+        layout: {
+          'text-field': ['coalesce', ['get', 'name:latin'], ['get', 'name']],
+          'text-font': ['Noto Sans Bold'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 9, 11, 14, 15],
+        },
+        paint: {
+          'text-color': '#f8fafc',
+          'text-halo-color': 'rgba(7, 12, 24, 0.9)',
+          'text-halo-width': 1.8,
+        },
+      },
+    ],
+  };
+}
+
+function getStyleForBasemap(
+  mode: BasemapMode,
+): string | maplibregl.StyleSpecification {
+  switch (mode) {
+    case 'dark':
+      return CARTO_DARK_STYLE_URL;
+    case 'satellite':
+      return createSatelliteStyle();
+    case 'liberty':
+      return OPENFREEMAP_LIBERTY_STYLE_URL;
+  }
+}
+
+function getBuildingPaintForBasemap(
+  mode: BasemapMode,
+): maplibregl.FillExtrusionLayerSpecification['paint'] {
+  if (mode === 'satellite') {
+    return {
+      'fill-extrusion-color': '#cbd5e1',
+      'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 10],
+      'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+      'fill-extrusion-opacity': 0.38,
+      'fill-extrusion-vertical-gradient': true,
+    };
+  }
+  if (mode === 'liberty') {
+    return {
+      'fill-extrusion-color': [
+        'interpolate',
+        ['linear'],
+        ['coalesce', ['get', 'render_height'], 10],
+        0,
+        '#cbd5e1',
+        25,
+        '#94a3b8',
+        70,
+        '#64748b',
+      ],
+      'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 10],
+      'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+      'fill-extrusion-opacity': 0.85,
+      'fill-extrusion-vertical-gradient': true,
+    };
+  }
+  // 'dark' metallic slate gradient
+  return {
+    'fill-extrusion-color': [
+      'interpolate',
+      ['linear'],
+      ['coalesce', ['get', 'render_height'], 10],
+      0,
+      '#1e293b',
+      25,
+      '#334155',
+      70,
+      '#475569',
+    ],
+    'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 10],
+    'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+    'fill-extrusion-opacity': 0.88,
+    'fill-extrusion-vertical-gradient': true,
+  };
+}
+
+function getSkyForBasemap(mode: BasemapMode): maplibregl.SkySpecification {
+  if (mode === 'dark') {
+    return {
+      'sky-color': '#0c1938',
+      'horizon-color': '#1e3a5f',
+      'fog-color': '#0b1120',
+      'sky-horizon-blend': 0.5,
+      'horizon-fog-blend': 0.7,
+      'fog-ground-blend': 0.55,
+      'atmosphere-blend': 0.85,
+    };
+  }
+  // Realistic daylight sky atmosphere for satellite & liberty
+  return {
+    'sky-color': '#2563eb',
+    'horizon-color': '#93c5fd',
+    'fog-color': '#dbeafe',
+    'sky-horizon-blend': 0.55,
+    'horizon-fog-blend': 0.7,
+    'fog-ground-blend': 0.45,
+    'atmosphere-blend': 0.85,
+  };
+}
+
 function emptyLineCollection(): FeatureCollection<LineString> {
   return { type: 'FeatureCollection', features: [] };
 }
@@ -343,6 +525,7 @@ function createVehicleChevronImage(): ImageData | null {
 
 export interface MapViewOptions {
   initial3D?: boolean;
+  initialBasemap?: BasemapMode;
   onOfflineFallback?: (isOffline: boolean) => void;
 }
 
@@ -356,28 +539,37 @@ export interface MapViewController {
   updateVehiclePose(frame: SampleFrame): void;
   clearTrack(): void;
   set3DMode(enabled: boolean): void;
+  setBasemap(mode: BasemapMode): void;
+  getBasemap(): BasemapMode;
   setCameraMode(mode: CameraMode): void;
   fitToCurrentTrack(): void;
   dispose(): void;
 }
 
 /**
- * Instantiates and manages the MapLibre GL 2D/3D map, AWS Terrarium DEM terrain,
- * resilient offline dark fallback, Telemetry Ribbon, tunnel layer, and 60 FPS vehicle pose.
+ * Instantiates and manages the MapLibre GL 2D/3D map, 3 free basemaps, AWS Terrarium
+ * DEM terrain + hillshade, 3D extruded OpenFreeMap buildings, sky/light atmosphere,
+ * resilient offline fallback, Telemetry Ribbon, tunnel layer, and 60 FPS vehicle pose.
  */
 export function createMapView(
   container: HTMLElement,
   options: MapViewOptions = {},
 ): MapViewController {
+  // Register self-contained MapLibre v6 worker URL before instantiating Map (Vite 8 compatibility)
+  if (typeof window !== 'undefined' && typeof maplibregl.setWorkerUrl === 'function') {
+    maplibregl.setWorkerUrl(maplibreWorkerUrl);
+  }
+
   let is3D = options.initial3D ?? true;
+  let basemapMode: BasemapMode = options.initialBasemap ?? 'dark';
   let cameraMode: CameraMode = 'chase';
   let offlineFallbackActive =
     typeof navigator !== 'undefined' && navigator.onLine === false;
-  let styleIndex = 0;
   let styleLoaded = false;
   let styleWatchdog: ReturnType<typeof setTimeout> | null = null;
   let lastRibbonData: TelemetryRibbonGeoJson | null = null;
   let lastFitBounds: [[number, number], [number, number]] | null = null;
+  let pendingFitOnStyleLoad = false;
   let hasVehiclePose = false;
 
   // Reusable single-object GeoJSON payload for zero-allocation 60 FPS updates
@@ -397,17 +589,22 @@ export function createMapView(
 
   const initialStyle: string | maplibregl.StyleSpecification = offlineFallbackActive
     ? OFFLINE_DARK_STYLE
-    : EXTERNAL_STYLES[0];
+    : getStyleForBasemap(basemapMode);
 
   const map = new maplibregl.Map({
     container,
     style: initialStyle,
     center: DEFAULT_CENTER,
     zoom: DEFAULT_ZOOM,
-    pitch: is3D ? 60 : 0,
+    pitch: is3D ? 65 : 0,
     bearing: 0,
     maxPitch: 85,
     attributionControl: { compact: true },
+    canvasContextAttributes: {
+      antialias: true,
+      powerPreference: 'high-performance',
+      preserveDrawingBuffer: true,
+    },
   });
 
   map.addControl(
@@ -423,20 +620,11 @@ export function createMapView(
     }
   }
 
-  function triggerStyleFallback(): void {
+  function triggerOfflineFallback(): void {
     clearWatchdog();
     if (offlineFallbackActive) return;
 
-    if (styleIndex + 1 < EXTERNAL_STYLES.length) {
-      styleIndex += 1;
-      const nextUrl = EXTERNAL_STYLES[styleIndex];
-      if (nextUrl) {
-        armWatchdog();
-        map.setStyle(nextUrl);
-        return;
-      }
-    }
-
+    styleLoaded = false;
     offlineFallbackActive = true;
     options.onOfflineFallback?.(true);
     map.setStyle(OFFLINE_DARK_STYLE);
@@ -447,7 +635,7 @@ export function createMapView(
     if (offlineFallbackActive) return;
     styleWatchdog = setTimeout(() => {
       if (!styleLoaded) {
-        triggerStyleFallback();
+        triggerOfflineFallback();
       }
     }, STYLE_LOAD_TIMEOUT_MS);
   }
@@ -458,13 +646,32 @@ export function createMapView(
     options.onOfflineFallback?.(true);
   }
 
-  function applyTerrain(): void {
+  function setLayerVisibilitySafe(layerId: string, visible: boolean): void {
+    try {
+      if (map.getLayer(layerId)) {
+        map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
+      }
+    } catch {
+      // Ignore if layer is mid-transition
+    }
+  }
+
+  function apply3DEnvironment(): void {
     if (!styleLoaded) return;
-    if (!is3D || offlineFallbackActive) {
+
+    const enable3DEffects = is3D && !offlineFallbackActive;
+
+    // 1. Toggle 3D buildings & hillshade layers (plus any native Liberty 3D building layer)
+    setLayerVisibilitySafe(BUILDINGS_LAYER_ID, enable3DEffects);
+    setLayerVisibilitySafe(TERRARIUM_HILLSHADE_LAYER_ID, enable3DEffects);
+    setLayerVisibilitySafe('building-3d', enable3DEffects);
+
+    // 2. Terrain DEM
+    if (!enable3DEffects) {
       try {
         map.setTerrain(null);
       } catch {
-        // Ignore if style is still settling
+        // Ignore if style is settling
       }
       return;
     }
@@ -479,13 +686,103 @@ export function createMapView(
           maxzoom: 15,
         });
       }
-      map.setTerrain({ source: TERRARIUM_SOURCE_ID, exaggeration: 1.2 });
+      map.setTerrain({ source: TERRARIUM_SOURCE_ID, exaggeration: 1.6 });
     } catch {
       // Safe fallback in offline/unsupported WebGL contexts
+    }
+
+    // 3. Directional 3D lighting & sky/fog atmosphere
+    try {
+      map.setLight({
+        anchor: 'viewport',
+        color: '#e2e8f0',
+        intensity: 0.55,
+        position: [1.3, 210, 35],
+      });
+    } catch {
+      // Ignore if style doesn't support light
+    }
+
+    try {
+      map.setSky(getSkyForBasemap(basemapMode));
+    } catch {
+      // Ignore if sky spec is unsupported
+    }
+  }
+
+  function ensure3DEnhancementLayers(): void {
+    if (offlineFallbackActive) return;
+
+    const visibility: 'visible' | 'none' = is3D ? 'visible' : 'none';
+    const beforeId = map.getLayer(RIBBON_GLOW_LAYER_ID) ? RIBBON_GLOW_LAYER_ID : undefined;
+
+    // 1. Dedicated hillshade DEM source (separate from terrain source to avoid MapLibre artifacts)
+    try {
+      if (!map.getSource(TERRARIUM_HILLSHADE_SOURCE_ID)) {
+        map.addSource(TERRARIUM_HILLSHADE_SOURCE_ID, {
+          type: 'raster-dem',
+          tiles: TERRARIUM_TILES,
+          encoding: 'terrarium',
+          tileSize: 256,
+          maxzoom: 15,
+        });
+      }
+      if (!map.getLayer(TERRARIUM_HILLSHADE_LAYER_ID)) {
+        map.addLayer(
+          {
+            id: TERRARIUM_HILLSHADE_LAYER_ID,
+            type: 'hillshade',
+            source: TERRARIUM_HILLSHADE_SOURCE_ID,
+            layout: { visibility },
+            paint: {
+              'hillshade-exaggeration': basemapMode === 'satellite' ? 0.45 : 0.65,
+              'hillshade-shadow-color': '#020617',
+              'hillshade-highlight-color': '#94a3b8',
+              'hillshade-accent-color': '#0f172a',
+            },
+          },
+          beforeId,
+        );
+      }
+    } catch {
+      // Safe fallback if hillshade fails
+    }
+
+    // 2. 3D Extruded Buildings (OpenFreeMap planet vector tiles) placed below the Telemetry Ribbon
+    try {
+      if (!map.getSource(BUILDINGS_SOURCE_ID)) {
+        map.addSource(BUILDINGS_SOURCE_ID, {
+          type: 'vector',
+          url: OPENFREEMAP_PLANET_URL,
+        });
+      }
+      if (!map.getLayer(BUILDINGS_LAYER_ID)) {
+        // Hide Liberty's duplicate native 3D layer so our height-colored extrusion stays authoritative
+        if (map.getLayer('building-3d')) {
+          setLayerVisibilitySafe('building-3d', false);
+        }
+        map.addLayer(
+          {
+            id: BUILDINGS_LAYER_ID,
+            type: 'fill-extrusion',
+            source: BUILDINGS_SOURCE_ID,
+            'source-layer': 'building',
+            minzoom: 13.5,
+            layout: { visibility },
+            paint: getBuildingPaintForBasemap(basemapMode),
+          },
+          beforeId,
+        );
+      }
+    } catch {
+      // Safe fallback if OpenFreeMap vector source is unreachable
     }
   }
 
   function ensureTelemetryLayers(): void {
+    // Install 3D hillshade & building layers first so telemetry sits cleanly on top
+    ensure3DEnhancementLayers();
+
     if (!map.hasImage(VEHICLE_ARROW_IMAGE_ID)) {
       const img = createVehicleChevronImage();
       if (img) {
@@ -523,7 +820,7 @@ export function createMapView(
         paint: {
           'line-color': ['get', 'color'],
           'line-width': 11,
-          'line-opacity': 0.22,
+          'line-opacity': 0.24,
           'line-blur': 4,
         },
       });
@@ -566,7 +863,7 @@ export function createMapView(
         paint: {
           'circle-radius': 14,
           'circle-color': '#38bdf8',
-          'circle-opacity': 0.22,
+          'circle-opacity': 0.24,
           'circle-stroke-width': 1.5,
           'circle-stroke-color': 'rgba(56, 189, 248, 0.55)',
         },
@@ -608,37 +905,34 @@ export function createMapView(
     styleLoaded = true;
     clearWatchdog();
     ensureTelemetryLayers();
-    applyTerrain();
+    apply3DEnvironment();
+    if (pendingFitOnStyleLoad && lastFitBounds) {
+      pendingFitOnStyleLoad = false;
+      fitToCurrentTrack();
+    }
   });
 
   map.on('error', (event) => {
-    // Only fall back to offline dark style if base style failed before loading
+    console.error('[MapView]', event.error);
     if (!styleLoaded && !offlineFallbackActive) {
       const msg = event.error?.message ?? '';
-      if (
-        msg.includes('Failed to fetch') ||
-        msg.includes('NetworkError') ||
-        msg.includes('404') ||
-        msg.includes('style') ||
-        !map.isStyleLoaded()
-      ) {
-        triggerStyleFallback();
+      if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+        triggerOfflineFallback();
       }
     }
   });
 
   function fitToCurrentTrack(): void {
     if (!lastFitBounds) return;
+    // Switch to free camera so the next 60 FPS tick doesn't immediately override fitBounds
+    cameraMode = 'free';
     const [sw, ne] = lastFitBounds;
-    map.fitBounds(
-      new maplibregl.LngLatBounds(sw, ne),
-      {
-        padding: { top: 88, bottom: 112, left: 356, right: 64 },
-        pitch: is3D ? 60 : 0,
-        duration: 750,
-        maxZoom: 16.5,
-      },
-    );
+    map.fitBounds(new maplibregl.LngLatBounds(sw, ne), {
+      padding: { top: 88, bottom: 112, left: 356, right: 64 },
+      pitch: is3D ? 65 : 0,
+      duration: 750,
+      maxZoom: 16.5,
+    });
   }
 
   function renderTelemetryRibbon(
@@ -656,10 +950,11 @@ export function createMapView(
       const tunnelSrc = map.getSource(TUNNEL_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
       ribbonSrc?.setData(built.ribbon);
       tunnelSrc?.setData(built.tunnels);
-    }
-
-    if (fitToTrack && built.bounds) {
-      fitToCurrentTrack();
+      if (fitToTrack && built.bounds) {
+        fitToCurrentTrack();
+      }
+    } else if (fitToTrack) {
+      pendingFitOnStyleLoad = true;
     }
   }
 
@@ -669,7 +964,7 @@ export function createMapView(
     vehicleCoord[0] = frame.lon;
     vehicleCoord[1] = frame.lat;
     // ISO 8855 CCW from +East -> MapLibre clockwise bearing from +North
-    const bearingDeg = ((90 - frame.yaw * RAD_TO_DEG) % 360 + 360) % 360;
+    const bearingDeg = (((90 - frame.yaw * RAD_TO_DEG) % 360) + 360) % 360;
     vehicleFeature.properties.bearing = bearingDeg;
     vehicleFeature.properties.speedKmh = frame.speedMs * 3.6;
 
@@ -687,7 +982,7 @@ export function createMapView(
       map.jumpTo({
         center: vehicleCoord,
         bearing: bearingDeg,
-        pitch: is3D ? 60 : 0,
+        pitch: is3D ? 65 : 0,
       });
     } else if (cameraMode === 'topdown') {
       map.jumpTo({
@@ -715,11 +1010,34 @@ export function createMapView(
 
   function set3DMode(enabled: boolean): void {
     is3D = enabled;
-    applyTerrain();
+    apply3DEnvironment();
+
+    if (!enabled) {
+      map.easeTo({
+        pitch: 0,
+        bearing: 0,
+        duration: 550,
+      });
+      return;
+    }
+
+    // Ensure 3D buildings become immediately visible when switching into 3D
+    const targetZoom = Math.max(map.getZoom(), MIN_3D_ZOOM);
     map.easeTo({
-      pitch: enabled ? 60 : 0,
-      duration: 450,
+      pitch: 65,
+      zoom: targetZoom,
+      duration: 650,
     });
+  }
+
+  function setBasemap(mode: BasemapMode): void {
+    if (mode === basemapMode && !offlineFallbackActive) return;
+    basemapMode = mode;
+    offlineFallbackActive = false;
+    options.onOfflineFallback?.(false);
+    styleLoaded = false;
+    armWatchdog();
+    map.setStyle(getStyleForBasemap(mode));
   }
 
   function setCameraMode(mode: CameraMode): void {
@@ -730,7 +1048,7 @@ export function createMapView(
       map.easeTo({
         center: vehicleCoord,
         bearing: vehicleFeature.properties.bearing,
-        pitch: is3D ? 60 : 0,
+        pitch: is3D ? 65 : 0,
         duration: 350,
       });
     }
@@ -747,6 +1065,8 @@ export function createMapView(
     updateVehiclePose,
     clearTrack,
     set3DMode,
+    setBasemap,
+    getBasemap: () => basemapMode,
     setCameraMode,
     fitToCurrentTrack,
     dispose,

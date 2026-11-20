@@ -8,7 +8,11 @@ import type { TripMode } from '../core/types.ts';
 import type { AppState, CameraMode, RibbonMetric } from '../state/appStore.ts';
 import type { PlaybackRate } from '../state/playbackClock.ts';
 import type { VehicleSummary, WorkerProgressStage } from '../workers/protocol.ts';
-import { getRibbonMetricMeta, RDYLGN_R_PALETTE } from './mapView.ts';
+import {
+  getRibbonMetricMeta,
+  RDYLGN_R_PALETTE,
+  type BasemapMode,
+} from './mapView.ts';
 import { escapeHtml } from './sanitize.ts';
 
 const GRAVITY_MS2 = 9.80665;
@@ -30,6 +34,11 @@ const CAMERA_OPTIONS: ReadonlyArray<{ value: CameraMode; label: string }> = [
   { value: 'topdown', label: 'Top' },
   { value: 'free', label: 'Livre' },
 ];
+const BASEMAP_OPTIONS: ReadonlyArray<{ value: BasemapMode; label: string }> = [
+  { value: 'dark', label: 'Escuro 3D' },
+  { value: 'satellite', label: 'Satélite' },
+  { value: 'liberty', label: 'Vetorial' },
+];
 
 export interface ControlsBarCallbacks {
   onCsvFileLoaded(csvText: string, fileName: string): void;
@@ -39,12 +48,14 @@ export interface ControlsBarCallbacks {
   onSurfaceGripChange(grip: number): void;
   onPayloadChange(payloadKg: number): void;
   onRibbonMetricChange(metric: RibbonMetric): void;
+  onBasemapChange(mode: BasemapMode): void;
   onToggle3D(enabled: boolean): void;
   onCameraModeChange(mode: CameraMode): void;
   onFitTrack(): void;
   onTogglePlay(): void;
   onSeek(tSec: number): void;
   onRateChange(rate: PlaybackRate): void;
+  onToggleRecord(): void;
 }
 
 export interface ControlsBarController {
@@ -52,6 +63,8 @@ export interface ControlsBarController {
   setSearchResults(results: readonly VehicleSummary[], elapsedMs: number): void;
   setProgress(stage: WorkerProgressStage | null, progress: number, message?: string): void;
   setPlaybackState(isPlaying: boolean, rate: PlaybackRate, durationSec: number): void;
+  setRecordingState(recording: boolean, elapsedSec: number): void;
+  setBasemap(mode: BasemapMode): void;
   updatePlaybackFrame(tSec: number, frame: SampleFrame | null): void;
   setSelectedVehicleLabel(label: string | null): void;
   setPayloadInputValue(payloadKg: number): void;
@@ -150,6 +163,23 @@ export function createControlsBar(
   legendWrap.append(legendMin, legendBar, legendMax);
   ribbonWrap.append(ribbonSelect, legendWrap);
 
+  // Basemap selector (Escuro 3D | Satélite | Vetorial)
+  const basemapGroup = el('div', 'segmented-group');
+  basemapGroup.setAttribute('role', 'group');
+  basemapGroup.setAttribute('aria-label', 'Mapa base');
+  const basemapButtons = new Map<BasemapMode, HTMLButtonElement>();
+  for (const bm of BASEMAP_OPTIONS) {
+    const btn = el('button', 'seg-btn', bm.label);
+    btn.type = 'button';
+    if (bm.value === 'dark') btn.classList.add('is-active');
+    btn.addEventListener('click', () => {
+      setBasemap(bm.value);
+      callbacks.onBasemapChange(bm.value);
+    });
+    basemapButtons.set(bm.value, btn);
+    basemapGroup.append(btn);
+  }
+
   // Camera segmented buttons
   const cameraGroup = el('div', 'segmented-group');
   cameraGroup.setAttribute('role', 'group');
@@ -179,7 +209,7 @@ export function createControlsBar(
     callbacks.onToggle3D(next);
   });
 
-  mapTools.append(ribbonWrap, cameraGroup, fitBtn, toggle3DBtn);
+  mapTools.append(ribbonWrap, basemapGroup, cameraGroup, fitBtn, toggle3DBtn);
   topBar.append(brandGroup, livePills, mapTools);
 
   // -------------------------------------------------------------------------
@@ -466,7 +496,16 @@ export function createControlsBar(
     rateGroup.append(rBtn);
   }
 
-  timelineDock.append(playBtn, scrubberWrap, timeDisplay, rateGroup);
+  const recordBtn = el('button', 'rec-btn');
+  recordBtn.type = 'button';
+  recordBtn.disabled = true;
+  recordBtn.title = 'Gravar e descarregar vídeo WebM do trajeto (2D ou 3D)';
+  const recordDot = el('span', 'rec-btn__dot');
+  const recordLabel = el('span', 'rec-btn__label tabular-nums', 'Gravar Vídeo');
+  recordBtn.append(recordDot, recordLabel);
+  recordBtn.addEventListener('click', () => callbacks.onToggleRecord());
+
+  timelineDock.append(playBtn, scrubberWrap, timeDisplay, rateGroup, recordBtn);
 
   // -------------------------------------------------------------------------
   // 4. PROGRESS OVERLAY, EMPTY STATE & GLOBAL DRAG-AND-DROP
@@ -691,12 +730,31 @@ export function createControlsBar(
     const enabled = durationSec > 0;
     playBtn.disabled = !enabled;
     scrubber.disabled = !enabled;
+    recordBtn.disabled = !enabled;
     scrubber.max = String(durationSec > 0 ? durationSec : 100);
     playBtn.textContent = isPlaying ? '❚❚' : '▶';
     playBtn.classList.toggle('is-playing', isPlaying);
 
     for (const [r, btn] of rateButtons.entries()) {
       btn.classList.toggle('is-active', r === rate);
+    }
+  }
+
+  function setRecordingState(recording: boolean, elapsedSec: number): void {
+    recordBtn.classList.toggle('is-recording', recording);
+    if (recording) {
+      const mins = Math.floor(Math.max(0, elapsedSec) / 60);
+      const secs = Math.floor(Math.max(0, elapsedSec) % 60);
+      const recTime = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      recordLabel.textContent = `Parar (REC ${recTime})`;
+    } else {
+      recordLabel.textContent = 'Gravar Vídeo';
+    }
+  }
+
+  function setBasemap(mode: BasemapMode): void {
+    for (const [m, btn] of basemapButtons.entries()) {
+      btn.classList.toggle('is-active', m === mode);
     }
   }
 
@@ -762,6 +820,8 @@ export function createControlsBar(
     setSearchResults,
     setProgress,
     setPlaybackState,
+    setRecordingState,
+    setBasemap,
     updatePlaybackFrame,
     setSelectedVehicleLabel,
     setPayloadInputValue,

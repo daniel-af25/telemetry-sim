@@ -1,22 +1,28 @@
 /**
  * Ponto de entrada da aplicação 2D/3D (`telemetry-sim`):
  * liga o Web Worker (`telemetry.worker.ts`), o estado reativo (`AppStore`),
- * o relógio mestre a 60 FPS (`PlaybackClock`), o mapa MapLibre 3D DEM (`mapView.ts`)
- * e a barra de controlos (`controlsBar.ts`).
+ * o relógio mestre a 60 FPS (`PlaybackClock`), o mapa MapLibre 3D DEM (`mapView.ts`),
+ * o gravador de vídeo nativo (`videoRecorder.ts`) e a barra de controlos (`controlsBar.ts`).
  */
 import './style.css';
-import { createInterpolator } from './core/interpolator.ts';
+import { createInterpolator, type SampleFrame } from './core/interpolator.ts';
 import type { TelemetryTrackSoA } from './core/soa.ts';
 import { createAppStore } from './state/appStore.ts';
 import { createPlaybackClock } from './state/playbackClock.ts';
 import { createControlsBar } from './ui/controlsBar.ts';
-import { createMapView } from './ui/mapView.ts';
+import { createMapView, type BasemapMode } from './ui/mapView.ts';
+import {
+  createTripVideoRecorder,
+  type VideoOverlaySnapshot,
+} from './ui/videoRecorder.ts';
 import type {
   ProcessedTrackPayload,
   VehicleSummary,
   WorkerRequest,
   WorkerResponse,
 } from './workers/protocol.ts';
+
+const GRAVITY_MS2 = 9.80665;
 
 const appRoot = document.getElementById('app');
 if (!appRoot) {
@@ -41,6 +47,7 @@ const clock = createPlaybackClock(0);
 // 2. MapLibre GL 2D/3D view
 const mapView = createMapView(mapContainer, {
   initial3D: store.getState().is3D,
+  initialBasemap: 'dark',
   onOfflineFallback: (isOffline) => {
     controls.setOfflineBadge(isOffline);
   },
@@ -70,6 +77,7 @@ let payloadOverrideKg: number | null = null;
 let activeProcessRequestId: string | null = null;
 let pendingFitToTrack = false;
 let currentTrack: TelemetryTrackSoA | null = null;
+let latestFrame: SampleFrame | null = null;
 
 function cancelActiveProcessing(): void {
   if (!activeProcessRequestId) return;
@@ -83,6 +91,10 @@ function cancelActiveProcessing(): void {
 
 function triggerCsvReprocess(fitToTrack: boolean): void {
   if (!lastCsvText) return;
+
+  if (videoRecorder.isRecording()) {
+    void videoRecorder.stopAndDownload(store.getState().sessionId ?? undefined);
+  }
 
   cancelActiveProcessing();
   clock.pause();
@@ -115,7 +127,34 @@ function triggerCsvReprocess(fitToTrack: boolean): void {
   });
 }
 
-// 4. UI Controls Bar & Event Wiring
+// 4. Native WebM Video Recorder (2D & 3D)
+const videoRecorder = createTripVideoRecorder({
+  getSourceCanvas: () => mapView.getMap().getCanvas(),
+  getOverlayData: (): VideoOverlaySnapshot => {
+    const state = store.getState();
+    const f = latestFrame;
+    return {
+      sessionLabel: state.sessionId ?? 'trip',
+      vehicleName: state.vehicleSpecs?.name ?? 'Unknown Vehicle',
+      is3D: state.is3D,
+      speedKmh: f ? f.speedMs * 3.6 : 0,
+      kammIndex: f ? f.kammIndex : 0,
+      latG: f ? f.ay / GRAVITY_MS2 : 0,
+      lonG: f ? f.ax / GRAVITY_MS2 : 0,
+      roadGradePct: f ? f.roadGradePct : 0,
+      timeSec: clock.getTimeSec(),
+      durationSec: clock.getDurationSec(),
+    };
+  },
+  onStateChange: (recording, elapsedSec) => {
+    controls.setRecordingState(recording, elapsedSec);
+  },
+  onError: (message) => {
+    store.setState({ errorMessage: message });
+  },
+});
+
+// 5. UI Controls Bar & Event Wiring
 const controls = createControlsBar(appRoot, store.getState(), {
   onCsvFileLoaded(csvText) {
     lastCsvText = csvText;
@@ -170,6 +209,10 @@ const controls = createControlsBar(appRoot, store.getState(), {
     }
   },
 
+  onBasemapChange(mode: BasemapMode) {
+    mapView.setBasemap(mode);
+  },
+
   onToggle3D(enabled) {
     store.setState({ is3D: enabled });
     mapView.set3DMode(enabled);
@@ -181,6 +224,7 @@ const controls = createControlsBar(appRoot, store.getState(), {
   },
 
   onFitTrack() {
+    store.setState({ cameraMode: 'free' });
     mapView.fitToCurrentTrack();
   },
 
@@ -197,6 +241,25 @@ const controls = createControlsBar(appRoot, store.getState(), {
     clock.setRate(rate);
     controls.setPlaybackState(clock.isPlaying(), clock.getRate(), clock.getDurationSec());
   },
+
+  onToggleRecord() {
+    if (videoRecorder.isRecording()) {
+      void videoRecorder.stopAndDownload(store.getState().sessionId ?? undefined);
+      return;
+    }
+
+    if (clock.getDurationSec() <= 0) return;
+
+    store.setState({ errorMessage: null });
+    if (!clock.isPlaying()) {
+      clock.play();
+      controls.setPlaybackState(clock.isPlaying(), clock.getRate(), clock.getDurationSec());
+    }
+    const started = videoRecorder.start();
+    if (!started) {
+      controls.setRecordingState(false, 0);
+    }
+  },
 });
 
 // Sync cold UI state whenever AppStore changes
@@ -204,21 +267,26 @@ store.subscribe((state) => {
   controls.syncState(state);
 });
 controls.syncState(store.getState());
+controls.setBasemap(mapView.getBasemap());
 
 // Single 60 FPS hot path driven by master PlaybackClock
 clock.onTick((tSec, frame) => {
+  latestFrame = frame;
   if (frame) {
     mapView.updateVehiclePose(frame);
   }
   controls.updatePlaybackFrame(tSec, frame);
 
-  // Sync play button icon cleanly if clock auto-paused at track end
+  // Sync play button icon and auto-finalize recording when track reaches the end
   if (!clock.isPlaying() && tSec >= clock.getDurationSec() && clock.getDurationSec() > 0) {
     controls.setPlaybackState(false, clock.getRate(), clock.getDurationSec());
+    if (videoRecorder.isRecording()) {
+      void videoRecorder.stopAndDownload(store.getState().sessionId ?? undefined);
+    }
   }
 });
 
-// 5. Handle Worker responses
+// 6. Handle Worker responses
 function applyPrimaryTrack(payload: ProcessedTrackPayload): void {
   const previousTimeSec = clock.getTimeSec();
   const shouldFit = pendingFitToTrack;
@@ -319,7 +387,7 @@ worker.addEventListener('error', (err) => {
   });
 });
 
-// 6. Boot: lazy-load 25k vehicle index in the background Worker
+// 7. Boot: lazy-load 25k vehicle index in the background Worker
 postWorker({
   type: 'LOAD_CATALOG',
   requestId: nextRequestId('catalog'),
