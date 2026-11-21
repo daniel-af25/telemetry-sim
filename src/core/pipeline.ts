@@ -78,6 +78,7 @@ export interface TelemetryPipelineResult {
   sessionVehicleMeta?: ParsedSessionVehicleMeta;
   scalingFactor: number;
   extraChannels: string[];
+  extraChannelSeries?: Record<string, Float32Array>;
   vehicleSpecs: ResolvedVehicleSpecs;
   kammLimits: DynamicKammLimitsResult;
   calibrationStats: CalibrationStats;
@@ -225,12 +226,27 @@ export function runTelemetryPipeline(
   const totalElapsedSec =
     samplesIso.length > 0 ? (samplesIso[samplesIso.length - 1]?.elapsedSec ?? 0) : 0;
 
+  let extraChannelSeries: Record<string, Float32Array> | undefined;
+  if (parsed.extraChannels.length > 0 && parsed.data.length > 0) {
+    extraChannelSeries = {};
+    const sampleCount = parsed.data.length;
+    for (const ch of parsed.extraChannels) {
+      const arr = new Float32Array(sampleCount);
+      for (let i = 0; i < sampleCount; i++) {
+        const val = parsed.data[i]?.extras?.[ch];
+        arr[i] = val !== undefined && Number.isFinite(val) ? val : Number.NaN;
+      }
+      extraChannelSeries[ch] = arr;
+    }
+  }
+
   return {
     profile: parsed.profile,
     metadata: parsed.metadata,
     ...(parsed.sessionVehicleMeta ? { sessionVehicleMeta: parsed.sessionVehicleMeta } : {}),
     scalingFactor: parsed.scalingFactor,
     extraChannels: parsed.extraChannels,
+    ...(extraChannelSeries ? { extraChannelSeries } : {}),
     vehicleSpecs,
     kammLimits,
     calibrationStats: calibration.stats,

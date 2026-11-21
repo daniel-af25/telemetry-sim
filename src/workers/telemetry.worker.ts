@@ -248,6 +248,7 @@ export function processCsvToTrack(
     ...(pipeline.sessionVehicleMeta ? { sessionVehicleMeta: pipeline.sessionVehicleMeta } : {}),
     scalingFactor: pipeline.scalingFactor,
     extraChannels: pipeline.extraChannels,
+    ...(pipeline.extraChannelSeries ? { extraChannelSeries: pipeline.extraChannelSeries } : {}),
     vehicleSpecs: pipeline.vehicleSpecs,
     kammLimits: pipeline.kammLimits,
     calibrationStats: pipeline.calibrationStats,
@@ -365,6 +366,11 @@ function handleProcessCsv(
   }
 
   const transferables = getTransferables(payload.track);
+  if (payload.extraChannelSeries) {
+    for (const arr of Object.values(payload.extraChannelSeries)) {
+      transferables.push(arr.buffer as ArrayBuffer);
+    }
+  }
   send(
     {
       type: 'PROCESSED_TRACK',

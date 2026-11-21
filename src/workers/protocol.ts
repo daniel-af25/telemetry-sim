@@ -148,6 +148,7 @@ export interface ProcessedTrackPayload {
   sessionVehicleMeta?: ParsedSessionVehicleMeta;
   scalingFactor: number;
   extraChannels: string[];
+  extraChannelSeries?: Record<string, Float32Array>;
   vehicleSpecs: ResolvedVehicleSpecs;
   kammLimits: DynamicKammLimitsResult;
   calibrationStats: CalibrationStats;
