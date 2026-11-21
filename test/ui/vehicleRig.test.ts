@@ -217,3 +217,100 @@ describe('threeLayer — guarda Chase & alinhamento ao terreno DEM nas 4 rodas',
     expect(uphill.terrainPitchRad).toBeLessThan(0);
   });
 });
+
+describe('vehicleRig — setas 3D de aceleração (ax, ay, resultante)', () => {
+  const G = 9.80665;
+
+  it('oculta setas na zona morta e respeita o toggle showForceVectors', () => {
+    const rig = createProceduralVehicleRig(SPECS);
+    const root = rig.getObject3D();
+
+    const forceVectors = root.getObjectByName('force_vectors');
+    const lonArrow = root.getObjectByName('accel_arrow_lon');
+    const latArrow = root.getObjectByName('accel_arrow_lat');
+    const netArrow = root.getObjectByName('accel_arrow_net');
+
+    expect(forceVectors).toBeDefined();
+    expect(lonArrow).toBeDefined();
+    expect(latArrow).toBeDefined();
+    expect(netArrow).toBeDefined();
+
+    // Velocidade constante / zona morta (< 0.03 G) com vetores ligados => setas ocultas
+    rig.updatePose(makeFrame({ ax: 0.01 * G, ay: -0.01 * G }), SPECS, {
+      dtSec: 0,
+      showForceVectors: true,
+    });
+    expect(forceVectors?.visible).toBe(true);
+    expect(lonArrow?.visible).toBe(false);
+    expect(latArrow?.visible).toBe(false);
+    expect(netArrow?.visible).toBe(false);
+
+    // Toggle desligado => grupo inteiro e setas ocultas mesmo com aceleração forte
+    rig.updatePose(makeFrame({ ax: 0.5 * G, ay: 0.5 * G }), SPECS, {
+      dtSec: 0,
+      showForceVectors: false,
+    });
+    expect(forceVectors?.visible).toBe(false);
+    expect(lonArrow?.visible).toBe(false);
+    expect(latArrow?.visible).toBe(false);
+    expect(netArrow?.visible).toBe(false);
+
+    rig.dispose();
+  });
+
+  it('orienta e escala proporcionalmente aceleração, travagem, curva e resultante em ISO 8855', () => {
+    const rig = createProceduralVehicleRig(SPECS);
+    const root = rig.getObject3D();
+
+    const lonArrow = root.getObjectByName('accel_arrow_lon');
+    const lonShaft = root.getObjectByName('accel_arrow_lon_shaft');
+    const latArrow = root.getObjectByName('accel_arrow_lat');
+    const netArrow = root.getObjectByName('accel_arrow_net');
+
+    // Aceleração frontal +0.3 G => +X (rotation.z ≈ 0)
+    rig.updatePose(makeFrame({ ax: 0.3 * G, ay: 0 }), SPECS, {
+      dtSec: 0,
+      showForceVectors: true,
+    });
+    expect(lonArrow?.visible).toBe(true);
+    expect(lonArrow?.rotation.z).toBeCloseTo(0, 5);
+    expect(latArrow?.visible).toBe(false);
+    const accelLen = lonShaft?.scale.x ?? 0;
+    expect(accelLen).toBeGreaterThan(0);
+
+    // Travagem -0.6 G => -X (rotation.z ≈ Math.PI) com o dobro do comprimento
+    rig.updatePose(makeFrame({ ax: -0.6 * G, ay: 0 }), SPECS, {
+      dtSec: 0,
+      showForceVectors: true,
+    });
+    expect(lonArrow?.visible).toBe(true);
+    expect(lonArrow?.rotation.z).toBeCloseTo(Math.PI, 5);
+    expect(lonShaft?.scale.x).toBeCloseTo(accelLen * 2, 4);
+
+    // Curva à esquerda +0.4 G => +Y (rotation.z ≈ +Math.PI / 2)
+    rig.updatePose(makeFrame({ ax: 0, ay: 0.4 * G }), SPECS, {
+      dtSec: 0,
+      showForceVectors: true,
+    });
+    expect(latArrow?.visible).toBe(true);
+    expect(latArrow?.rotation.z).toBeCloseTo(Math.PI / 2, 5);
+
+    // Curva à direita -0.4 G => -Y (rotation.z ≈ -Math.PI / 2)
+    rig.updatePose(makeFrame({ ax: 0, ay: -0.4 * G }), SPECS, {
+      dtSec: 0,
+      showForceVectors: true,
+    });
+    expect(latArrow?.visible).toBe(true);
+    expect(latArrow?.rotation.z).toBeCloseTo(-Math.PI / 2, 5);
+
+    // Travagem + curva à esquerda combinadas (-0.3 G, +0.4 G) => atan2(0.4, -0.3)
+    rig.updatePose(makeFrame({ ax: -0.3 * G, ay: 0.4 * G }), SPECS, {
+      dtSec: 0,
+      showForceVectors: true,
+    });
+    expect(netArrow?.visible).toBe(true);
+    expect(netArrow?.rotation.z).toBeCloseTo(Math.atan2(0.4, -0.3), 5);
+
+    rig.dispose();
+  });
+});

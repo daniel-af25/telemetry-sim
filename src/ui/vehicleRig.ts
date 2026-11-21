@@ -20,6 +20,53 @@ const OVERHANG_REAR_M = 0.58;
 const BODY_WIDTH_MARGIN_M = 0.14;
 const TIRE_WIDTH_M = 0.22;
 const FORCE_ARROW_MAX_M = 1.65;
+const ACCEL_DEADZONE_G = 0.03;
+const ACCEL_NET_DEADZONE_G = 0.04;
+const ACCEL_SCALE_M_PER_G = 3.0;
+const ACCEL_ARROW_MAX_M = 2.6;
+const ACCEL_NET_ARROW_MAX_M = 3.0;
+
+interface HorizontalArrowNodes {
+  group: THREE.Group;
+  shaft: THREE.Mesh;
+  cone: THREE.Mesh;
+  material: THREE.MeshBasicMaterial;
+  coneHeight: number;
+}
+
+function createHorizontalArrow(
+  name: string,
+  colorHex: number,
+  shaftRadius: number,
+  coneRadius: number,
+  coneHeight: number,
+): HorizontalArrowNodes {
+  const group = new THREE.Group();
+  group.name = name;
+  group.visible = false;
+
+  const material = new THREE.MeshBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.92,
+  });
+
+  // CylinderGeometry axis is +Y; rotate -PI/2 around Z so axis aligns with +X (ISO 8855 forward)
+  const shaftGeo = new THREE.CylinderGeometry(shaftRadius, shaftRadius, 1.0, 12);
+  shaftGeo.rotateZ(-Math.PI / 2);
+  shaftGeo.translate(0.5, 0, 0);
+  const shaft = new THREE.Mesh(shaftGeo, material);
+  shaft.name = `${name}_shaft`;
+
+  const coneGeo = new THREE.ConeGeometry(coneRadius, coneHeight, 14);
+  coneGeo.rotateZ(-Math.PI / 2);
+  const cone = new THREE.Mesh(coneGeo, material);
+  cone.name = `${name}_cone`;
+  cone.position.set(1.0 + coneHeight * 0.5, 0, 0);
+
+  group.add(shaft, cone);
+  return { group, shaft, cone, material, coneHeight };
+}
 
 export interface VehicleRigUpdateOptions {
   dtSec?: number;
@@ -208,6 +255,15 @@ export function createProceduralVehicleRig(
   forceVectorsGroup.visible = false;
   root.add(forceVectorsGroup);
 
+  // Dynamic 3D acceleration arrows (longitudinal ax, lateral ay, combined net) above the roof
+  const accelArrowLon = createHorizontalArrow('accel_arrow_lon', 0x10b981, 0.045, 0.11, 0.24);
+  accelArrowLon.group.position.set(0, 0, cgZ + 0.72);
+  const accelArrowLat = createHorizontalArrow('accel_arrow_lat', 0xf59e0b, 0.045, 0.11, 0.24);
+  accelArrowLat.group.position.set(0, 0, cgZ + 0.72);
+  const accelArrowNet = createHorizontalArrow('accel_arrow_net', 0xfb923c, 0.055, 0.13, 0.28);
+  accelArrowNet.group.position.set(0, 0, cgZ + 0.76);
+  forceVectorsGroup.add(accelArrowLon.group, accelArrowLat.group, accelArrowNet.group);
+
   const wheelCoords: Record<WheelId, [number, number]> = {
     FL: [lf, tf * 0.5],
     FR: [lf, -tf * 0.5],
@@ -295,7 +351,7 @@ export function createProceduralVehicleRig(
     chassis.rotation.y = frame.pitchRad * exaggerate;
     chassis.rotation.z = 0;
 
-    // 5. Optional 3D contact-patch force vectors & grip discs
+    // 5. Optional 3D contact-patch force vectors, grip discs & dynamic acceleration arrows
     const showForces = Boolean(opts?.showForceVectors);
     forceVectorsGroup.visible = showForces;
     if (showForces) {
@@ -319,6 +375,48 @@ export function createProceduralVehicleRig(
         node.gripDisc.scale.set(discScale, discScale, 1);
         node.gripMat.color.set(colorForUtilization(kammUtil));
       }
+
+      const axG = Number.isFinite(frame.ax) ? frame.ax / GRAVITY_MS2 : 0;
+      const ayG = Number.isFinite(frame.ay) ? frame.ay / GRAVITY_MS2 : 0;
+      const netG = Math.hypot(axG, ayG);
+
+      // Longitudinal acceleration (+X green) / braking (-X crimson)
+      if (Math.abs(axG) < ACCEL_DEADZONE_G) {
+        accelArrowLon.group.visible = false;
+      } else {
+        const len = Math.min(ACCEL_ARROW_MAX_M, Math.abs(axG) * ACCEL_SCALE_M_PER_G);
+        accelArrowLon.group.visible = true;
+        accelArrowLon.group.rotation.z = axG > 0 ? 0 : Math.PI;
+        accelArrowLon.material.color.set(axG > 0 ? 0x10b981 : 0xf43f5e);
+        accelArrowLon.shaft.scale.set(len, 1, 1);
+        accelArrowLon.cone.position.x = len + accelArrowLon.coneHeight * 0.5;
+      }
+
+      // Lateral acceleration (+Y left / -Y right in ISO 8855)
+      if (Math.abs(ayG) < ACCEL_DEADZONE_G) {
+        accelArrowLat.group.visible = false;
+      } else {
+        const len = Math.min(ACCEL_ARROW_MAX_M, Math.abs(ayG) * ACCEL_SCALE_M_PER_G);
+        accelArrowLat.group.visible = true;
+        accelArrowLat.group.rotation.z = ayG > 0 ? Math.PI / 2 : -Math.PI / 2;
+        accelArrowLat.shaft.scale.set(len, 1, 1);
+        accelArrowLat.cone.position.x = len + accelArrowLat.coneHeight * 0.5;
+      }
+
+      // Combined horizontal acceleration resultant (ax, ay)
+      if (netG < ACCEL_NET_DEADZONE_G) {
+        accelArrowNet.group.visible = false;
+      } else {
+        const len = Math.min(ACCEL_NET_ARROW_MAX_M, netG * ACCEL_SCALE_M_PER_G);
+        accelArrowNet.group.visible = true;
+        accelArrowNet.group.rotation.z = Math.atan2(ayG, axG);
+        accelArrowNet.shaft.scale.set(len, 1, 1);
+        accelArrowNet.cone.position.x = len + accelArrowNet.coneHeight * 0.5;
+      }
+    } else {
+      accelArrowLon.group.visible = false;
+      accelArrowLat.group.visible = false;
+      accelArrowNet.group.visible = false;
     }
   }
 

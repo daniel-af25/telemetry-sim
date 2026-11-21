@@ -465,6 +465,39 @@ export function createControlsBar(
   forceVectorsBtn.style.minWidth = '64px';
   forceVectorsBtn.setAttribute('aria-pressed', 'false');
 
+  // Floating 3D Force Vectors mini-legend (hidden by default, synced with toggle)
+  const forceVectorsLegend = el('aside', 'force-vectors-legend glass-panel is-hidden');
+  forceVectorsLegend.setAttribute('aria-label', 'Legenda dos vetores físicos 3D');
+  forceVectorsLegend.append(el('div', 'force-vectors-legend__title', 'VETORES 3D (ISO 8855)'));
+
+  const forceLegendList = el('ul', 'force-vectors-legend__list');
+  const forceLegendItems: ReadonlyArray<{ swatch: string; label: string; isGradient?: boolean }> = [
+    { swatch: '#38bdf8', label: 'Fz vertical · Carga/roda' },
+    { swatch: '#10b981', label: '+ax · Aceleração' },
+    { swatch: '#f43f5e', label: '-ax · Travagem' },
+    { swatch: '#f59e0b', label: '±ay · Lateral (curva)' },
+    { swatch: '#fb923c', label: 'Resultante · Kamm' },
+    {
+      swatch: `linear-gradient(90deg, ${RDYLGN_R_PALETTE.join(', ')})`,
+      label: 'Discos · Uso de aderência',
+      isGradient: true,
+    },
+  ];
+  for (const item of forceLegendItems) {
+    const li = el('li', 'force-vectors-legend__item');
+    const swatch = el(
+      'span',
+      item.isGradient
+        ? 'force-vectors-legend__swatch force-vectors-legend__swatch--gradient'
+        : 'force-vectors-legend__swatch',
+    );
+    swatch.style.background = item.swatch;
+    const label = el('span', 'force-vectors-legend__label', item.label);
+    li.append(swatch, label);
+    forceLegendList.append(li);
+  }
+  forceVectorsLegend.append(forceLegendList);
+
   let forceVectorsOn = false;
   function setForceVectorsUI(enabled: boolean): void {
     forceVectorsOn = enabled;
@@ -473,6 +506,7 @@ export function createControlsBar(
     forceVectorsBtn.setAttribute('aria-pressed', String(enabled));
     forceVectorsQuickBtn.classList.toggle('is-active', enabled);
     forceVectorsQuickBtn.setAttribute('aria-pressed', String(enabled));
+    forceVectorsLegend.classList.toggle('is-hidden', !enabled);
   }
   const toggleForceVectors = () => {
     const next = !forceVectorsOn;
@@ -648,7 +682,15 @@ export function createControlsBar(
   }
   updateLegend(initialState.ribbonMetric);
 
-  root.append(topBar, sideShell, timelineDock, progressOverlay, emptyState, dragOverlay);
+  root.append(
+    topBar,
+    sideShell,
+    timelineDock,
+    forceVectorsLegend,
+    progressOverlay,
+    emptyState,
+    dragOverlay,
+  );
 
   // -------------------------------------------------------------------------
   // CONTROLLER METHODS
