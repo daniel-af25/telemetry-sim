@@ -32,12 +32,12 @@ export interface SampleFrame {
   kammIndex: number;
   roadGradePct: number;
   distM: number;
-  flags: number;
+  flags?: number;
   gpsValid: boolean;
   isGap: boolean;
   isTunnelDr: boolean;
   isSlip: boolean;
-  segmentIndex: number;
+  segmentIndex?: number;
 }
 
 export interface TelemetryInterpolator {

@@ -8,6 +8,7 @@ import type { TripMode } from '../core/types.ts';
 import type { AppState, CameraMode, RibbonMetric } from '../state/appStore.ts';
 import type { PlaybackRate } from '../state/playbackClock.ts';
 import type { VehicleSummary, WorkerProgressStage } from '../workers/protocol.ts';
+import type { BlackBoxWindow } from './blackboxPanel.ts';
 import {
   getRibbonMetricMeta,
   RDYLGN_R_PALETTE,
@@ -47,6 +48,8 @@ export interface ControlsBarCallbacks {
   onTripModeChange(mode: TripMode): void;
   onSurfaceGripChange(grip: number): void;
   onPayloadChange(payloadKg: number): void;
+  onExaggerateChange(exaggerate: number): void;
+  onToggleForceVectors(enabled: boolean): void;
   onRibbonMetricChange(metric: RibbonMetric): void;
   onBasemapChange(mode: BasemapMode): void;
   onToggle3D(enabled: boolean): void;
@@ -63,6 +66,7 @@ export interface ControlsBarController {
   setSearchResults(results: readonly VehicleSummary[], elapsedMs: number): void;
   setProgress(stage: WorkerProgressStage | null, progress: number, message?: string): void;
   setPlaybackState(isPlaying: boolean, rate: PlaybackRate, durationSec: number): void;
+  setBlackBoxWindow(window: BlackBoxWindow | null): void;
   setRecordingState(recording: boolean, elapsedSec: number): void;
   setBasemap(mode: BasemapMode): void;
   updatePlaybackFrame(tSec: number, frame: SampleFrame | null): void;
@@ -194,7 +198,12 @@ export function createControlsBar(
     cameraGroup.append(btn);
   }
 
-  // Fit-track & 2D/3D toggle
+  // Quick toggle 3D Force Vectors, Fit-track & 2D/3D toggle
+  const forceVectorsQuickBtn = el('button', 'icon-btn', 'Fz 3D');
+  forceVectorsQuickBtn.type = 'button';
+  forceVectorsQuickBtn.title = 'Mostrar/ocultar vetores verticais Fz e discos de aderência 3D nos 4 pneus';
+  forceVectorsQuickBtn.setAttribute('aria-pressed', 'false');
+
   const fitBtn = el('button', 'icon-btn', 'Enquadrar');
   fitBtn.type = 'button';
   fitBtn.title = 'Enquadrar percurso no mapa';
@@ -209,7 +218,7 @@ export function createControlsBar(
     callbacks.onToggle3D(next);
   });
 
-  mapTools.append(ribbonWrap, basemapGroup, cameraGroup, fitBtn, toggle3DBtn);
+  mapTools.append(ribbonWrap, basemapGroup, cameraGroup, forceVectorsQuickBtn, fitBtn, toggle3DBtn);
   topBar.append(brandGroup, livePills, mapTools);
 
   // -------------------------------------------------------------------------
@@ -422,6 +431,95 @@ export function createControlsBar(
     }, 180);
   });
 
+  // Section C0: Visualização 3D (exagero de suspensão 1x..6x + vetores físicos Fz/aderência)
+  const visual3DSection = el('section', 'panel-section');
+  visual3DSection.append(el('h2', 'panel-heading', 'VISUALIZAÇÃO 3D'));
+
+  const exagBlock = el('div', 'control-block');
+  const exagHeader = el('div', 'section-row');
+  exagHeader.append(el('span', 'control-label', 'Exagero Suspensão (Roll/Pitch)'));
+  const exagValLabel = el(
+    'span',
+    'control-value tabular-nums',
+    `${initialState.exaggerate.toFixed(1)}×`,
+  );
+  exagHeader.append(exagValLabel);
+
+  const exagSlider = document.createElement('input');
+  exagSlider.type = 'range';
+  exagSlider.className = 'telemetry-slider';
+  exagSlider.min = '1.0';
+  exagSlider.max = '6.0';
+  exagSlider.step = '0.5';
+  exagSlider.value = initialState.exaggerate.toFixed(1);
+  exagSlider.setAttribute('aria-label', 'Exagero da suspensão 3D');
+  exagSlider.addEventListener('input', () => {
+    const val = Number(exagSlider.value);
+    exagValLabel.textContent = `${val.toFixed(1)}×`;
+    callbacks.onExaggerateChange(val);
+  });
+  exagBlock.append(exagHeader, exagSlider);
+
+  const vectorsRow = el('div', 'section-row');
+  vectorsRow.append(el('span', 'control-label', 'Vetores Fz & Aderência 3D'));
+  const forceVectorsBtn = el('button', 'preset-btn', 'OFF');
+  forceVectorsBtn.type = 'button';
+  forceVectorsBtn.style.minWidth = '64px';
+  forceVectorsBtn.setAttribute('aria-pressed', 'false');
+
+  // Floating 3D Force Vectors mini-legend (hidden by default, synced with toggle)
+  const forceVectorsLegend = el('aside', 'force-vectors-legend glass-panel is-hidden');
+  forceVectorsLegend.setAttribute('aria-label', 'Legenda dos vetores físicos 3D');
+  forceVectorsLegend.append(el('div', 'force-vectors-legend__title', 'VETORES 3D (ISO 8855)'));
+
+  const forceLegendList = el('ul', 'force-vectors-legend__list');
+  const forceLegendItems: ReadonlyArray<{ swatch: string; label: string; isGradient?: boolean }> = [
+    { swatch: '#38bdf8', label: 'Fz vertical · Carga/roda' },
+    { swatch: '#10b981', label: '+ax · Aceleração' },
+    { swatch: '#f43f5e', label: '-ax · Travagem' },
+    { swatch: '#f59e0b', label: '±ay · Lateral (curva)' },
+    { swatch: '#fb923c', label: 'Resultante · Kamm' },
+    {
+      swatch: `linear-gradient(90deg, ${RDYLGN_R_PALETTE.join(', ')})`,
+      label: 'Discos · Uso de aderência',
+      isGradient: true,
+    },
+  ];
+  for (const item of forceLegendItems) {
+    const li = el('li', 'force-vectors-legend__item');
+    const swatch = el(
+      'span',
+      item.isGradient
+        ? 'force-vectors-legend__swatch force-vectors-legend__swatch--gradient'
+        : 'force-vectors-legend__swatch',
+    );
+    swatch.style.background = item.swatch;
+    const label = el('span', 'force-vectors-legend__label', item.label);
+    li.append(swatch, label);
+    forceLegendList.append(li);
+  }
+  forceVectorsLegend.append(forceLegendList);
+
+  let forceVectorsOn = false;
+  function setForceVectorsUI(enabled: boolean): void {
+    forceVectorsOn = enabled;
+    forceVectorsBtn.textContent = enabled ? 'ON' : 'OFF';
+    forceVectorsBtn.classList.toggle('is-active', enabled);
+    forceVectorsBtn.setAttribute('aria-pressed', String(enabled));
+    forceVectorsQuickBtn.classList.toggle('is-active', enabled);
+    forceVectorsQuickBtn.setAttribute('aria-pressed', String(enabled));
+    forceVectorsLegend.classList.toggle('is-hidden', !enabled);
+  }
+  const toggleForceVectors = () => {
+    const next = !forceVectorsOn;
+    setForceVectorsUI(next);
+    callbacks.onToggleForceVectors(next);
+  };
+  forceVectorsBtn.addEventListener('click', toggleForceVectors);
+  forceVectorsQuickBtn.addEventListener('click', toggleForceVectors);
+  vectorsRow.append(forceVectorsBtn);
+  visual3DSection.append(exagBlock, vectorsRow);
+
   physicsSection.append(modeRow, gripBlock, payloadBlock);
 
   // Section D: Session Diagnostics & Alerts
@@ -439,7 +537,7 @@ export function createControlsBar(
 
   summarySection.append(summaryGrid, warningBanner, errorBanner);
 
-  sidePanel.append(uploadSection, vehicleSection, physicsSection, summarySection);
+  sidePanel.append(uploadSection, vehicleSection, visual3DSection, physicsSection, summarySection);
   sideShell.append(sidePanel, collapseBtn);
 
   // -------------------------------------------------------------------------
@@ -455,6 +553,10 @@ export function createControlsBar(
   playBtn.addEventListener('click', () => callbacks.onTogglePlay());
 
   const scrubberWrap = el('div', 'scrubber-wrap');
+  const blackboxWindowEl = el('div', 'timeline-blackbox-window is-hidden');
+  const blackboxTickEl = el('span', 'timeline-blackbox-window__tick');
+  blackboxWindowEl.append(blackboxTickEl);
+
   const scrubber = document.createElement('input');
   scrubber.type = 'range';
   scrubber.className = 'telemetry-slider telemetry-slider--timeline';
@@ -479,7 +581,7 @@ export function createControlsBar(
       callbacks.onSeek(nextT);
     }
   });
-  scrubberWrap.append(scrubber);
+  scrubberWrap.append(blackboxWindowEl, scrubber);
 
   const timeDisplay = el('div', 'time-display tabular-nums', '00:00.0 / 00:00.0');
 
@@ -586,7 +688,15 @@ export function createControlsBar(
   }
   updateLegend(initialState.ribbonMetric);
 
-  root.append(topBar, sideShell, timelineDock, progressOverlay, emptyState, dragOverlay);
+  root.append(
+    topBar,
+    sideShell,
+    timelineDock,
+    forceVectorsLegend,
+    progressOverlay,
+    emptyState,
+    dragOverlay,
+  );
 
   // -------------------------------------------------------------------------
   // CONTROLLER METHODS
@@ -740,6 +850,23 @@ export function createControlsBar(
     }
   }
 
+  function setBlackBoxWindow(win: BlackBoxWindow | null): void {
+    if (!win || durationSec <= 0) {
+      blackboxWindowEl.classList.add('is-hidden');
+      return;
+    }
+    const startPct = Math.max(0, Math.min(100, (win.startSec / durationSec) * 100));
+    const endPct = Math.max(startPct, Math.min(100, (win.endSec / durationSec) * 100));
+    const widthPct = Math.max(0.8, endPct - startPct);
+    const span = Math.max(1e-3, win.endSec - win.startSec);
+    const tickPct = Math.max(0, Math.min(100, ((win.incidentSec - win.startSec) / span) * 100));
+
+    blackboxWindowEl.style.left = `${startPct}%`;
+    blackboxWindowEl.style.width = `${widthPct}%`;
+    blackboxTickEl.style.left = `${tickPct}%`;
+    blackboxWindowEl.classList.remove('is-hidden');
+  }
+
   function setRecordingState(recording: boolean, elapsedSec: number): void {
     recordBtn.classList.toggle('is-recording', recording);
     if (recording) {
@@ -820,6 +947,7 @@ export function createControlsBar(
     setSearchResults,
     setProgress,
     setPlaybackState,
+    setBlackBoxWindow,
     setRecordingState,
     setBasemap,
     updatePlaybackFrame,

@@ -16,6 +16,23 @@ export type IncidentCategory =
   | 'bump'
   | 'slip';
 
+export interface IncidentCandidate {
+  category: IncidentCategory;
+  points: number;
+  excessRatio: number;
+  timestamp?: string | number;
+}
+
+export interface Incident extends IncidentCandidate {
+  timeStr: string;
+  elapsedSec: number;
+  timestamp: string | number;
+  lat: number | null;
+  lon: number | null;
+  reason: string;
+  intensity: string;
+}
+
 export interface TelemetryPointRaw {
   timestamp: string | number;
   lat: number | null;
