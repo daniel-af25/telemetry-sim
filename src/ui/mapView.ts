@@ -526,6 +526,8 @@ function createVehicleChevronImage(): ImageData | null {
 export interface MapViewOptions {
   initial3D?: boolean;
   initialBasemap?: BasemapMode;
+  externalCameraControl?: boolean;
+  onStyleLoad?: (map: maplibregl.Map) => void;
   onOfflineFallback?: (isOffline: boolean) => void;
 }
 
@@ -537,6 +539,7 @@ export interface MapViewController {
     fitToTrack?: boolean,
   ): void;
   updateVehiclePose(frame: SampleFrame): void;
+  setVehicleMarkerVisible(visible: boolean): void;
   clearTrack(): void;
   set3DMode(enabled: boolean): void;
   setBasemap(mode: BasemapMode): void;
@@ -571,6 +574,8 @@ export function createMapView(
   let lastFitBounds: [[number, number], [number, number]] | null = null;
   let pendingFitOnStyleLoad = false;
   let hasVehiclePose = false;
+  let vehicleMarkerVisible = true;
+  const externalCameraControl = Boolean(options.externalCameraControl);
 
   // Reusable single-object GeoJSON payload for zero-allocation 60 FPS updates
   const vehicleCoord: [number, number] = [DEFAULT_CENTER[0], DEFAULT_CENTER[1]];
@@ -906,6 +911,8 @@ export function createMapView(
     clearWatchdog();
     ensureTelemetryLayers();
     apply3DEnvironment();
+    setVehicleMarkerVisible(vehicleMarkerVisible);
+    options.onStyleLoad?.(map);
     if (pendingFitOnStyleLoad && lastFitBounds) {
       pendingFitOnStyleLoad = false;
       fitToCurrentTrack();
@@ -978,19 +985,29 @@ export function createMapView(
       src?.setData(vehicleCollection);
     }
 
-    if (cameraMode === 'chase') {
-      map.jumpTo({
-        center: vehicleCoord,
-        bearing: bearingDeg,
-        pitch: is3D ? 65 : 0,
-      });
-    } else if (cameraMode === 'topdown') {
-      map.jumpTo({
-        center: vehicleCoord,
-        bearing: 0,
-        pitch: 0,
-      });
+    if (!externalCameraControl) {
+      if (cameraMode === 'chase') {
+        map.jumpTo({
+          center: vehicleCoord,
+          bearing: bearingDeg,
+          pitch: is3D ? 65 : 0,
+        });
+      } else if (cameraMode === 'topdown') {
+        map.jumpTo({
+          center: vehicleCoord,
+          bearing: 0,
+          pitch: 0,
+        });
+      }
     }
+  }
+
+  function setVehicleMarkerVisible(nextVisible: boolean): void {
+    vehicleMarkerVisible = nextVisible;
+    if (!styleLoaded) return;
+    setLayerVisibilitySafe(VEHICLE_HALO_LAYER_ID, nextVisible);
+    setLayerVisibilitySafe(VEHICLE_DOT_LAYER_ID, nextVisible);
+    setLayerVisibilitySafe(VEHICLE_ARROW_LAYER_ID, nextVisible);
   }
 
   function clearTrack(): void {
@@ -1063,6 +1080,7 @@ export function createMapView(
     getMap: () => map,
     renderTelemetryRibbon,
     updateVehiclePose,
+    setVehicleMarkerVisible,
     clearTrack,
     set3DMode,
     setBasemap,

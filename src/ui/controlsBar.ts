@@ -47,6 +47,8 @@ export interface ControlsBarCallbacks {
   onTripModeChange(mode: TripMode): void;
   onSurfaceGripChange(grip: number): void;
   onPayloadChange(payloadKg: number): void;
+  onExaggerateChange(exaggerate: number): void;
+  onToggleForceVectors(enabled: boolean): void;
   onRibbonMetricChange(metric: RibbonMetric): void;
   onBasemapChange(mode: BasemapMode): void;
   onToggle3D(enabled: boolean): void;
@@ -422,7 +424,47 @@ export function createControlsBar(
     }, 180);
   });
 
-  physicsSection.append(modeRow, gripBlock, payloadBlock);
+  // Suspension exaggeration (1x..6x, default 4.0x) + 3D Force Vectors toggle
+  const exagBlock = el('div', 'control-block');
+  const exagHeader = el('div', 'section-row');
+  exagHeader.append(el('span', 'control-label', 'Exagero Suspensão (Roll/Pitch)'));
+  const exagValLabel = el(
+    'span',
+    'control-value tabular-nums',
+    `${initialState.exaggerate.toFixed(1)}×`,
+  );
+  exagHeader.append(exagValLabel);
+
+  const exagSlider = document.createElement('input');
+  exagSlider.type = 'range';
+  exagSlider.className = 'telemetry-slider';
+  exagSlider.min = '1.0';
+  exagSlider.max = '6.0';
+  exagSlider.step = '0.5';
+  exagSlider.value = initialState.exaggerate.toFixed(1);
+  exagSlider.setAttribute('aria-label', 'Exagero da suspensão 3D');
+  exagSlider.addEventListener('input', () => {
+    const val = Number(exagSlider.value);
+    exagValLabel.textContent = `${val.toFixed(1)}×`;
+    callbacks.onExaggerateChange(val);
+  });
+  exagBlock.append(exagHeader, exagSlider);
+
+  const vectorsRow = el('div', 'section-row');
+  vectorsRow.append(el('span', 'control-label', 'Vetores Fz & Aderência 3D'));
+  const forceVectorsBtn = el('button', 'preset-btn', 'OFF');
+  forceVectorsBtn.type = 'button';
+  forceVectorsBtn.style.minWidth = '64px';
+  let forceVectorsOn = false;
+  forceVectorsBtn.addEventListener('click', () => {
+    forceVectorsOn = !forceVectorsOn;
+    forceVectorsBtn.textContent = forceVectorsOn ? 'ON' : 'OFF';
+    forceVectorsBtn.classList.toggle('is-active', forceVectorsOn);
+    callbacks.onToggleForceVectors(forceVectorsOn);
+  });
+  vectorsRow.append(forceVectorsBtn);
+
+  physicsSection.append(modeRow, gripBlock, payloadBlock, exagBlock, vectorsRow);
 
   // Section D: Session Diagnostics & Alerts
   const summarySection = el('section', 'panel-section');
