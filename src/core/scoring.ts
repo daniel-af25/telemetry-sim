@@ -7,7 +7,15 @@
  *   npx vitest run test/scoring.test.ts
  */
 import { computeKammIndex } from './kamm.ts';
-import type { CalibratedSampleIso, IncidentCategory, KammLimits } from './types.ts';
+import type {
+  CalibratedSampleIso,
+  Incident,
+  IncidentCandidate,
+  IncidentCategory,
+  KammLimits,
+} from './types.ts';
+
+export type { Incident, IncidentCandidate };
 
 const GRAVITY_MS2 = 9.80665;
 const RAD_TO_DEG = 180 / Math.PI;
@@ -23,23 +31,6 @@ const SLIP_RESIDUAL_THRESHOLD_G = 0.35;
 export interface SlipEvaluation {
   isSlip: boolean;
   slipResidualG: number;
-}
-
-export interface IncidentCandidate {
-  category: IncidentCategory;
-  points: number;
-  excessRatio: number;
-  timestamp?: string | number;
-}
-
-export interface Incident extends IncidentCandidate {
-  timeStr: string;
-  elapsedSec: number;
-  timestamp: string | number;
-  lat: number | null;
-  lon: number | null;
-  reason: string;
-  intensity: string;
 }
 
 export interface DrivingSkillPillar {

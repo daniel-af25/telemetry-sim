@@ -10,6 +10,10 @@ import type { TelemetryTrackSoA } from './core/soa.ts';
 import { resolveVehicleSpecs, type ResolvedVehicleSpecs } from './core/vehicleSpecs.ts';
 import { createAppStore } from './state/appStore.ts';
 import { createPlaybackClock } from './state/playbackClock.ts';
+import {
+  createBlackboxPanel,
+  type BlackboxPanelController,
+} from './ui/blackboxPanel.ts';
 import { createControlsBar } from './ui/controlsBar.ts';
 import { createMapView, type BasemapMode } from './ui/mapView.ts';
 import { createThreeVehicleLayer } from './ui/threeLayer.ts';
@@ -59,6 +63,8 @@ const threeLayer = createThreeVehicleLayer({
 });
 
 // 3. MapLibre GL 2D/3D view (hosts the Three.js 3D vehicle layer across basemap switches)
+let blackboxPanel: BlackboxPanelController | null = null;
+
 const mapView = createMapView(mapContainer, {
   initial3D: store.getState().is3D,
   initialBasemap: 'dark',
@@ -67,6 +73,7 @@ const mapView = createMapView(mapContainer, {
     if (!map.getLayer(threeLayer.layer.id)) {
       map.addLayer(threeLayer.layer);
     }
+    blackboxPanel?.syncMapLayers(map);
   },
   onOfflineFallback: (isOffline) => {
     controls.setOfflineBadge(isOffline);
@@ -316,6 +323,19 @@ store.subscribe((state) => {
 controls.syncState(store.getState());
 controls.setBasemap(mapView.getBasemap());
 
+// 5b. Black Box Incident Replay Panel (0.25x Chase Jump + MapLibre numbered markers)
+blackboxPanel = createBlackboxPanel({
+  container: appRoot,
+  clock,
+  store,
+  map: mapView.getMap(),
+  onBlackBoxJump: (_incident, win) => {
+    threeLayer.setCameraMode('chase');
+    controls.setPlaybackState(clock.isPlaying(), clock.getRate(), clock.getDurationSec());
+    controls.setBlackBoxWindow(win);
+  },
+});
+
 // Single 60 FPS hot path driven by master PlaybackClock
 clock.onTick((tSec, frame) => {
   const rawDt = tSec - lastTickSec;
@@ -375,11 +395,19 @@ function applyPrimaryTrack(payload: ProcessedTrackPayload): void {
     controls.setPayloadInputValue(payload.vehicleSpecs.payloadKg);
   }
 
+  if (shouldFit) {
+    store.setState({ cameraMode: 'free' });
+    threeLayer.setCameraMode('free');
+  }
+
   mapView.renderTelemetryRibbon(
     payload.track,
     store.getState().ribbonMetric,
     shouldFit,
   );
+
+  blackboxPanel?.setIncidents(payload.incidents);
+  controls.setBlackBoxWindow(null);
 
   const resumeTime = shouldFit
     ? 0

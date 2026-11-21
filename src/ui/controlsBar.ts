@@ -8,6 +8,7 @@ import type { TripMode } from '../core/types.ts';
 import type { AppState, CameraMode, RibbonMetric } from '../state/appStore.ts';
 import type { PlaybackRate } from '../state/playbackClock.ts';
 import type { VehicleSummary, WorkerProgressStage } from '../workers/protocol.ts';
+import type { BlackBoxWindow } from './blackboxPanel.ts';
 import {
   getRibbonMetricMeta,
   RDYLGN_R_PALETTE,
@@ -65,6 +66,7 @@ export interface ControlsBarController {
   setSearchResults(results: readonly VehicleSummary[], elapsedMs: number): void;
   setProgress(stage: WorkerProgressStage | null, progress: number, message?: string): void;
   setPlaybackState(isPlaying: boolean, rate: PlaybackRate, durationSec: number): void;
+  setBlackBoxWindow(window: BlackBoxWindow | null): void;
   setRecordingState(recording: boolean, elapsedSec: number): void;
   setBasemap(mode: BasemapMode): void;
   updatePlaybackFrame(tSec: number, frame: SampleFrame | null): void;
@@ -551,6 +553,10 @@ export function createControlsBar(
   playBtn.addEventListener('click', () => callbacks.onTogglePlay());
 
   const scrubberWrap = el('div', 'scrubber-wrap');
+  const blackboxWindowEl = el('div', 'timeline-blackbox-window is-hidden');
+  const blackboxTickEl = el('span', 'timeline-blackbox-window__tick');
+  blackboxWindowEl.append(blackboxTickEl);
+
   const scrubber = document.createElement('input');
   scrubber.type = 'range';
   scrubber.className = 'telemetry-slider telemetry-slider--timeline';
@@ -575,7 +581,7 @@ export function createControlsBar(
       callbacks.onSeek(nextT);
     }
   });
-  scrubberWrap.append(scrubber);
+  scrubberWrap.append(blackboxWindowEl, scrubber);
 
   const timeDisplay = el('div', 'time-display tabular-nums', '00:00.0 / 00:00.0');
 
@@ -844,6 +850,23 @@ export function createControlsBar(
     }
   }
 
+  function setBlackBoxWindow(win: BlackBoxWindow | null): void {
+    if (!win || durationSec <= 0) {
+      blackboxWindowEl.classList.add('is-hidden');
+      return;
+    }
+    const startPct = Math.max(0, Math.min(100, (win.startSec / durationSec) * 100));
+    const endPct = Math.max(startPct, Math.min(100, (win.endSec / durationSec) * 100));
+    const widthPct = Math.max(0.8, endPct - startPct);
+    const span = Math.max(1e-3, win.endSec - win.startSec);
+    const tickPct = Math.max(0, Math.min(100, ((win.incidentSec - win.startSec) / span) * 100));
+
+    blackboxWindowEl.style.left = `${startPct}%`;
+    blackboxWindowEl.style.width = `${widthPct}%`;
+    blackboxTickEl.style.left = `${tickPct}%`;
+    blackboxWindowEl.classList.remove('is-hidden');
+  }
+
   function setRecordingState(recording: boolean, elapsedSec: number): void {
     recordBtn.classList.toggle('is-recording', recording);
     if (recording) {
@@ -924,6 +947,7 @@ export function createControlsBar(
     setSearchResults,
     setProgress,
     setPlaybackState,
+    setBlackBoxWindow,
     setRecordingState,
     setBasemap,
     updatePlaybackFrame,
