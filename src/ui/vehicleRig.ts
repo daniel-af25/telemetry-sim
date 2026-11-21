@@ -19,7 +19,7 @@ const OVERHANG_FRONT_M = 0.62;
 const OVERHANG_REAR_M = 0.58;
 const BODY_WIDTH_MARGIN_M = 0.14;
 const TIRE_WIDTH_M = 0.22;
-const FORCE_ARROW_MAX_M = 1.2;
+const FORCE_ARROW_MAX_M = 1.65;
 
 export interface VehicleRigUpdateOptions {
   dtSec?: number;
@@ -215,15 +215,15 @@ export function createProceduralVehicleRig(
     RR: [-lr, -tr * 0.5],
   };
 
-  const fzBarGeo = new THREE.CylinderGeometry(0.032, 0.032, 1.0, 10);
+  const fzBarGeo = new THREE.CylinderGeometry(0.048, 0.048, 1.0, 12);
   // Rotate cylinder from +Y axis to +Z vertical axis and shift base to z = 0
   fzBarGeo.rotateX(Math.PI / 2);
   fzBarGeo.translate(0, 0, 0.5);
 
-  const fzConeGeo = new THREE.ConeGeometry(0.07, 0.16, 12);
+  const fzConeGeo = new THREE.ConeGeometry(0.105, 0.22, 14);
   fzConeGeo.rotateX(Math.PI / 2);
 
-  const gripDiscGeo = new THREE.CircleGeometry(r * 0.95, 24);
+  const gripDiscGeo = new THREE.CircleGeometry(r * 1.25, 28);
 
   const wheelNodes = {} as Record<WheelId, WheelNodes>;
 
@@ -240,7 +240,7 @@ export function createProceduralVehicleRig(
     root.add(knuckle);
 
     // Optional contact-patch force vector & grip disc at z = 0
-    const lateralOutboard = wy >= 0 ? 0.24 : -0.24;
+    const lateralOutboard = wy >= 0 ? 0.28 : -0.28;
     const fzBar = new THREE.Mesh(fzBarGeo, fzArrowMat);
     fzBar.position.set(wx, wy + lateralOutboard, 0);
     forceVectorsGroup.add(fzBar);
@@ -252,11 +252,12 @@ export function createProceduralVehicleRig(
     const gripMat = new THREE.MeshBasicMaterial({
       color: 0x10b981,
       transparent: true,
-      opacity: 0.42,
+      opacity: 0.58,
+      depthWrite: false,
       side: THREE.DoubleSide,
     });
     const gripDisc = new THREE.Mesh(gripDiscGeo, gripMat);
-    gripDisc.position.set(wx, wy, 0.015);
+    gripDisc.position.set(wx, wy, 0.035);
     forceVectorsGroup.add(gripDisc);
 
     wheelNodes[id] = { knuckle, wheel, fzBar, fzCone, gripDisc, gripMat };
@@ -310,11 +311,11 @@ export function createProceduralVehicleRig(
       for (const id of ['FL', 'FR', 'RL', 'RR'] as const) {
         const node = wheelNodes[id];
         const fz = Math.max(0, loads[id]);
-        const arrowLen = Math.max(0.05, Math.min(FORCE_ARROW_MAX_M, (fz / refLoadN) * 0.75));
+        const arrowLen = Math.max(0.08, Math.min(FORCE_ARROW_MAX_M, (fz / refLoadN) * 0.95));
         node.fzBar.scale.set(1, 1, arrowLen);
-        node.fzCone.position.z = arrowLen + 0.08;
+        node.fzCone.position.z = arrowLen + 0.11;
 
-        const discScale = Math.max(0.25, Math.min(1.4, Math.sqrt(fz / refLoadN)));
+        const discScale = Math.max(0.35, Math.min(1.55, Math.sqrt(fz / refLoadN)));
         node.gripDisc.scale.set(discScale, discScale, 1);
         node.gripMat.color.set(colorForUtilization(kammUtil));
       }

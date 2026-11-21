@@ -1059,6 +1059,7 @@ export function createMapView(
 
   function setCameraMode(mode: CameraMode): void {
     cameraMode = mode;
+    if (externalCameraControl) return;
     if (mode === 'topdown') {
       map.easeTo({ pitch: 0, bearing: 0, duration: 350 });
     } else if (mode === 'chase' && hasVehiclePose) {

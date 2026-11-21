@@ -196,7 +196,12 @@ export function createControlsBar(
     cameraGroup.append(btn);
   }
 
-  // Fit-track & 2D/3D toggle
+  // Quick toggle 3D Force Vectors, Fit-track & 2D/3D toggle
+  const forceVectorsQuickBtn = el('button', 'icon-btn', 'Fz 3D');
+  forceVectorsQuickBtn.type = 'button';
+  forceVectorsQuickBtn.title = 'Mostrar/ocultar vetores verticais Fz e discos de aderência 3D nos 4 pneus';
+  forceVectorsQuickBtn.setAttribute('aria-pressed', 'false');
+
   const fitBtn = el('button', 'icon-btn', 'Enquadrar');
   fitBtn.type = 'button';
   fitBtn.title = 'Enquadrar percurso no mapa';
@@ -211,7 +216,7 @@ export function createControlsBar(
     callbacks.onToggle3D(next);
   });
 
-  mapTools.append(ribbonWrap, basemapGroup, cameraGroup, fitBtn, toggle3DBtn);
+  mapTools.append(ribbonWrap, basemapGroup, cameraGroup, forceVectorsQuickBtn, fitBtn, toggle3DBtn);
   topBar.append(brandGroup, livePills, mapTools);
 
   // -------------------------------------------------------------------------
@@ -424,7 +429,10 @@ export function createControlsBar(
     }, 180);
   });
 
-  // Suspension exaggeration (1x..6x, default 4.0x) + 3D Force Vectors toggle
+  // Section C0: Visualização 3D (exagero de suspensão 1x..6x + vetores físicos Fz/aderência)
+  const visual3DSection = el('section', 'panel-section');
+  visual3DSection.append(el('h2', 'panel-heading', 'VISUALIZAÇÃO 3D'));
+
   const exagBlock = el('div', 'control-block');
   const exagHeader = el('div', 'section-row');
   exagHeader.append(el('span', 'control-label', 'Exagero Suspensão (Roll/Pitch)'));
@@ -455,16 +463,28 @@ export function createControlsBar(
   const forceVectorsBtn = el('button', 'preset-btn', 'OFF');
   forceVectorsBtn.type = 'button';
   forceVectorsBtn.style.minWidth = '64px';
-  let forceVectorsOn = false;
-  forceVectorsBtn.addEventListener('click', () => {
-    forceVectorsOn = !forceVectorsOn;
-    forceVectorsBtn.textContent = forceVectorsOn ? 'ON' : 'OFF';
-    forceVectorsBtn.classList.toggle('is-active', forceVectorsOn);
-    callbacks.onToggleForceVectors(forceVectorsOn);
-  });
-  vectorsRow.append(forceVectorsBtn);
+  forceVectorsBtn.setAttribute('aria-pressed', 'false');
 
-  physicsSection.append(modeRow, gripBlock, payloadBlock, exagBlock, vectorsRow);
+  let forceVectorsOn = false;
+  function setForceVectorsUI(enabled: boolean): void {
+    forceVectorsOn = enabled;
+    forceVectorsBtn.textContent = enabled ? 'ON' : 'OFF';
+    forceVectorsBtn.classList.toggle('is-active', enabled);
+    forceVectorsBtn.setAttribute('aria-pressed', String(enabled));
+    forceVectorsQuickBtn.classList.toggle('is-active', enabled);
+    forceVectorsQuickBtn.setAttribute('aria-pressed', String(enabled));
+  }
+  const toggleForceVectors = () => {
+    const next = !forceVectorsOn;
+    setForceVectorsUI(next);
+    callbacks.onToggleForceVectors(next);
+  };
+  forceVectorsBtn.addEventListener('click', toggleForceVectors);
+  forceVectorsQuickBtn.addEventListener('click', toggleForceVectors);
+  vectorsRow.append(forceVectorsBtn);
+  visual3DSection.append(exagBlock, vectorsRow);
+
+  physicsSection.append(modeRow, gripBlock, payloadBlock);
 
   // Section D: Session Diagnostics & Alerts
   const summarySection = el('section', 'panel-section');
@@ -481,7 +501,7 @@ export function createControlsBar(
 
   summarySection.append(summaryGrid, warningBanner, errorBanner);
 
-  sidePanel.append(uploadSection, vehicleSection, physicsSection, summarySection);
+  sidePanel.append(uploadSection, vehicleSection, visual3DSection, physicsSection, summarySection);
   sideShell.append(sidePanel, collapseBtn);
 
   // -------------------------------------------------------------------------

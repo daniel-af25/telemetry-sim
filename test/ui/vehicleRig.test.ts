@@ -27,7 +27,11 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import type { SampleFrame } from '../../src/core/interpolator.ts';
 import type { ResolvedVehicleSpecs } from '../../src/core/vehicleSpecs.ts';
-import { resolveTerrainElevation } from '../../src/ui/threeLayer.ts';
+import {
+  computeTerrainPlanePose,
+  resolveTerrainElevation,
+  shouldReleaseChaseOnInteraction,
+} from '../../src/ui/threeLayer.ts';
 import { createProceduralVehicleRig } from '../../src/ui/vehicleRig.ts';
 
 const SPECS: ResolvedVehicleSpecs = {
@@ -157,5 +161,59 @@ describe('threeLayer — resolveTerrainElevation (guarda null/offline do DEM)', 
     expect(resolveTerrainElevation(undefined, 42.0)).toBeCloseTo(42.0, 4);
     expect(resolveTerrainElevation(Number.NaN, 42.0)).toBeCloseTo(42.0, 4);
     expect(resolveTerrainElevation(null)).toBe(0);
+  });
+});
+
+describe('threeLayer — guarda Chase & alinhamento ao terreno DEM nas 4 rodas', () => {
+  it('ignora eventos programáticos (originalEvent ausente) e só liberta Chase com interação real do utilizador', () => {
+    expect(shouldReleaseChaseOnInteraction('chase', undefined)).toBe(false);
+    expect(shouldReleaseChaseOnInteraction('chase', { originalEvent: undefined })).toBe(false);
+    expect(shouldReleaseChaseOnInteraction('chase', { originalEvent: {} })).toBe(true);
+    expect(shouldReleaseChaseOnInteraction('topdown', { originalEvent: {} })).toBe(false);
+    expect(shouldReleaseChaseOnInteraction('free', { originalEvent: {} })).toBe(false);
+  });
+
+  it('alinha pitch/roll ao declive DEM e mantém todas as 4 rodas acima do terreno (sem afundar)', () => {
+    // 1. Terreno plano
+    const flat = computeTerrainPlanePose(
+      100,
+      { fl: 100, fr: 100, rl: 100, rr: 100 },
+      SPECS,
+    );
+    expect(flat.terrainPitchRad).toBeCloseTo(0, 6);
+    expect(flat.terrainRollRad).toBeCloseTo(0, 6);
+    expect(flat.elevation).toBeGreaterThan(100);
+
+    // 2. Inclinação transversal com lado direito (+40 cm) mais alto que o esquerdo
+    const rightUp = computeTerrainPlanePose(
+      100.2,
+      { fl: 100.0, rl: 100.0, fr: 100.4, rr: 100.4 },
+      SPECS,
+    );
+    expect(rightUp.terrainRollRad).toBeLessThan(0);
+
+    const lr = SPECS.wheelbaseL * SPECS.frontWeightRatio;
+    const lf = SPECS.wheelbaseL - lr;
+    const sinP = Math.sin(rightUp.terrainPitchRad);
+    const cosP = Math.cos(rightUp.terrainPitchRad);
+    const sinR = Math.sin(rightUp.terrainRollRad);
+
+    const zFL = rightUp.elevation + (-lf * sinP + SPECS.trackF * 0.5 * sinR * cosP);
+    const zFR = rightUp.elevation + (-lf * sinP - SPECS.trackF * 0.5 * sinR * cosP);
+    const zRL = rightUp.elevation + (lr * sinP + SPECS.trackR * 0.5 * sinR * cosP);
+    const zRR = rightUp.elevation + (lr * sinP - SPECS.trackR * 0.5 * sinR * cosP);
+
+    expect(zFL).toBeGreaterThanOrEqual(100.0);
+    expect(zFR).toBeGreaterThanOrEqual(100.4);
+    expect(zRL).toBeGreaterThanOrEqual(100.0);
+    expect(zRR).toBeGreaterThanOrEqual(100.4);
+
+    // 3. Subida longitudinal (+50 cm na frente) => pitch negativo (nariz para cima)
+    const uphill = computeTerrainPlanePose(
+      100.25,
+      { fl: 100.5, fr: 100.5, rl: 100.0, rr: 100.0 },
+      SPECS,
+    );
+    expect(uphill.terrainPitchRad).toBeLessThan(0);
   });
 });

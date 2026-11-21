@@ -365,6 +365,12 @@ body,
   color: var(--text-primary);
 }
 
+.icon-btn.is-active {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
 .mode-3d-btn {
   height: 30px;
   min-width: 44px;
