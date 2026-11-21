@@ -6,6 +6,11 @@
  */
 import './style.css';
 import { createInterpolator, type SampleFrame } from './core/interpolator.ts';
+import {
+  computeSchema6ClipWindow,
+  exportSchema6Csv,
+  extractSchema6FramesFromSoA,
+} from './core/schema6Export.ts';
 import type { TelemetryTrackSoA } from './core/soa.ts';
 import { resolveVehicleSpecs, type ResolvedVehicleSpecs } from './core/vehicleSpecs.ts';
 import { createAppStore } from './state/appStore.ts';
@@ -16,6 +21,7 @@ import {
 } from './ui/blackboxPanel.ts';
 import { createControlsBar } from './ui/controlsBar.ts';
 import { createHudCanvas } from './ui/hudCanvas.ts';
+import { createLabOverlay } from './ui/labOverlay.ts';
 import { createMapView, type BasemapMode } from './ui/mapView.ts';
 import { createThreeVehicleLayer } from './ui/threeLayer.ts';
 import {
@@ -156,6 +162,31 @@ function triggerCsvReprocess(fitToTrack: boolean): void {
   });
 }
 
+function downloadSchema6Clip(centerSec: number, label: string): void {
+  const state = store.getState();
+  if (!currentTrack || !state.vehicleSpecs || !state.kammLimits) return;
+
+  const win = computeSchema6ClipWindow(centerSec, clock.getDurationSec(), 16.0);
+  const frames = extractSchema6FramesFromSoA(currentTrack, win);
+  if (frames.length === 0) return;
+
+  const csv = exportSchema6Csv(frames, state.vehicleSpecs, state.kammLimits, win);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const safeSession = (state.sessionId ?? 'telemetry')
+    .replace(/[^a-zA-Z0-9_-]+/g, '_')
+    .slice(0, 48);
+  const safeLabel = label.replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 32);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${safeSession}_${safeLabel}_schema6.csv`;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 // 4. Native WebM Video Recorder (2D & 3D)
 const videoRecorder = createTripVideoRecorder({
   getSourceCanvas: () => mapView.getMap().getCanvas(),
@@ -233,6 +264,7 @@ const controls = createControlsBar(appRoot, store.getState(), {
 
   onExaggerateChange(exaggerate) {
     store.setState({ exaggerate });
+    labOverlay.setExaggerate(exaggerate);
     if (latestFrame) {
       const specs = store.getState().vehicleSpecs ?? defaultVehicleSpecs;
       threeLayer.updateFrame(latestFrame, specs, {
@@ -269,6 +301,13 @@ const controls = createControlsBar(appRoot, store.getState(), {
   onToggle3D(enabled) {
     store.setState({ is3D: enabled });
     mapView.set3DMode(enabled);
+    labOverlay.setMode3D(enabled);
+  },
+
+  onToggleLabView(open) {
+    if (clock.getDurationSec() <= 0) return;
+    store.setState({ labViewOpen: open });
+    labOverlay.setOpen(open);
   },
 
   onCameraModeChange(mode) {
@@ -315,6 +354,11 @@ const controls = createControlsBar(appRoot, store.getState(), {
       controls.setRecordingState(false, 0);
     }
   },
+
+  onExportSchema6() {
+    const tSec = clock.getTimeSec();
+    downloadSchema6Clip(tSec, `t${Math.round(tSec)}s`);
+  },
 });
 
 // Sync cold UI state whenever AppStore changes
@@ -335,12 +379,41 @@ blackboxPanel = createBlackboxPanel({
     controls.setPlaybackState(clock.isPlaying(), clock.getRate(), clock.getDurationSec());
     controls.setBlackBoxWindow(win);
   },
+  onExportSchema6: (incident, rank) => {
+    downloadSchema6Clip(incident.elapsedSec, `inc${rank}_${incident.category}`);
+  },
 });
 
 // 5c. 60 FPS HiDPI Canvas Telemetry HUD (Dual Asymmetric G-G, 4-wheel Fz, 5 Pillars, Extra Sparkline)
 const hudCanvas = createHudCanvas({
   container: appRoot,
   initialCollapsed: true,
+});
+
+// 5d. Live Engineering Lab Overlay (2D Top-Down Canvas / 3D Three.js Isometric)
+const labOverlay = createLabOverlay({
+  container: appRoot,
+  initial3D: store.getState().is3D,
+  initialExaggerate: store.getState().exaggerate,
+  onClose: () => {
+    store.setState({ labViewOpen: false });
+    labOverlay.setOpen(false);
+  },
+  onSeek: (tSec) => {
+    clock.seek(tSec);
+  },
+  onExaggerateChange: (exaggerate) => {
+    store.setState({ exaggerate });
+    labOverlay.setExaggerate(exaggerate);
+    if (latestFrame) {
+      const specs = store.getState().vehicleSpecs ?? defaultVehicleSpecs;
+      threeLayer.updateFrame(latestFrame, specs, {
+        dtSec: 0,
+        exaggerate,
+        showForceVectors,
+      });
+    }
+  },
 });
 
 // Single 60 FPS hot path driven by master PlaybackClock
@@ -362,6 +435,7 @@ clock.onTick((tSec, frame) => {
   }
   controls.updatePlaybackFrame(tSec, frame);
   hudCanvas.updateFrame(tSec, frame);
+  labOverlay.updateFrame(tSec, frame, dtSec);
 
   // Sync play button icon and auto-finalize recording when track reaches the end
   if (!clock.isPlaying() && tSec >= clock.getDurationSec() && clock.getDurationSec() > 0) {
@@ -428,6 +502,13 @@ function applyPrimaryTrack(payload: ProcessedTrackPayload): void {
     track: payload.track,
     extraChannels: payload.extraChannels,
     ...(payload.extraChannelSeries ? { extraChannelSeries: payload.extraChannelSeries } : {}),
+  });
+
+  labOverlay.setSessionData({
+    sessionLabel: payload.sessionVehicleMeta?.sessionId ?? 'Sessão',
+    vehicleSpecs: payload.vehicleSpecs,
+    kammLimits: payload.kammLimits,
+    track: payload.track,
   });
 
   const resumeTime = shouldFit

@@ -33,6 +33,7 @@ export interface AppState {
   cameraMode: CameraMode;
   exaggerate: number;
   is3D: boolean;
+  labViewOpen: boolean;
   incidents: Incident[];
   pillars: DrivingSkillPillar[];
   summary: TelemetryPipelineSummary | null;
@@ -67,6 +68,7 @@ function createDefaultState(): AppState {
     cameraMode: 'chase',
     exaggerate: 4,
     is3D: true,
+    labViewOpen: false,
     incidents: [],
     pillars: [],
     summary: null,

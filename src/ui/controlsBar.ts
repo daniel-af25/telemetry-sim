@@ -53,12 +53,14 @@ export interface ControlsBarCallbacks {
   onRibbonMetricChange(metric: RibbonMetric): void;
   onBasemapChange(mode: BasemapMode): void;
   onToggle3D(enabled: boolean): void;
+  onToggleLabView(open: boolean): void;
   onCameraModeChange(mode: CameraMode): void;
   onFitTrack(): void;
   onTogglePlay(): void;
   onSeek(tSec: number): void;
   onRateChange(rate: PlaybackRate): void;
   onToggleRecord(): void;
+  onExportSchema6(): void;
 }
 
 export interface ControlsBarController {
@@ -218,7 +220,27 @@ export function createControlsBar(
     callbacks.onToggle3D(next);
   });
 
-  mapTools.append(ribbonWrap, basemapGroup, cameraGroup, forceVectorsQuickBtn, fitBtn, toggle3DBtn);
+  const labViewBtn = el('button', 'icon-btn lab-trigger-btn', 'Lab 2D/3D');
+  labViewBtn.type = 'button';
+  labViewBtn.disabled = true;
+  labViewBtn.setAttribute('aria-pressed', String(initialState.labViewOpen));
+  labViewBtn.title = initialState.is3D
+    ? 'Abrir Lab 3D Isométrico (view3d.py ao vivo a 60 FPS)'
+    : 'Abrir Lab 2D Top-Down (topdown.py ao vivo a 60 FPS)';
+  labViewBtn.addEventListener('click', () => {
+    const next = !labViewBtn.classList.contains('is-active');
+    callbacks.onToggleLabView(next);
+  });
+
+  mapTools.append(
+    ribbonWrap,
+    basemapGroup,
+    cameraGroup,
+    forceVectorsQuickBtn,
+    fitBtn,
+    toggle3DBtn,
+    labViewBtn,
+  );
   topBar.append(brandGroup, livePills, mapTools);
 
   // -------------------------------------------------------------------------
@@ -598,6 +620,12 @@ export function createControlsBar(
     rateGroup.append(rBtn);
   }
 
+  const exportSchema6Btn = el('button', 'icon-btn export-schema6-btn', 'Exportar # schema=6');
+  exportSchema6Btn.type = 'button';
+  exportSchema6Btn.disabled = true;
+  exportSchema6Btn.title = 'Exportar Recorte # schema=6 (10–20 s) centrado na posição atual da timeline para view3d.py / topdown.py';
+  exportSchema6Btn.addEventListener('click', () => callbacks.onExportSchema6());
+
   const recordBtn = el('button', 'rec-btn');
   recordBtn.type = 'button';
   recordBtn.disabled = true;
@@ -607,7 +635,7 @@ export function createControlsBar(
   recordBtn.append(recordDot, recordLabel);
   recordBtn.addEventListener('click', () => callbacks.onToggleRecord());
 
-  timelineDock.append(playBtn, scrubberWrap, timeDisplay, rateGroup, recordBtn);
+  timelineDock.append(playBtn, scrubberWrap, timeDisplay, rateGroup, exportSchema6Btn, recordBtn);
 
   // -------------------------------------------------------------------------
   // 4. PROGRESS OVERLAY, EMPTY STATE & GLOBAL DRAG-AND-DROP
@@ -728,6 +756,15 @@ export function createControlsBar(
     toggle3DBtn.classList.toggle('is-active', state.is3D);
     toggle3DBtn.textContent = state.is3D ? '3D' : '2D';
 
+    labViewBtn.classList.toggle('is-active', state.labViewOpen);
+    labViewBtn.setAttribute('aria-pressed', String(state.labViewOpen));
+    labViewBtn.title = state.is3D
+      ? 'Abrir/fechar Lab 3D Isométrico (view3d.py ao vivo a 60 FPS)'
+      : 'Abrir/fechar Lab 2D Top-Down (topdown.py ao vivo a 60 FPS)';
+
+    exagSlider.value = state.exaggerate.toFixed(1);
+    exagValLabel.textContent = `${state.exaggerate.toFixed(1)}×`;
+
     for (const [mode, btn] of cameraButtons.entries()) {
       btn.classList.toggle('is-active', mode === state.cameraMode);
     }
@@ -841,6 +878,8 @@ export function createControlsBar(
     playBtn.disabled = !enabled;
     scrubber.disabled = !enabled;
     recordBtn.disabled = !enabled;
+    exportSchema6Btn.disabled = !enabled;
+    labViewBtn.disabled = !enabled;
     scrubber.max = String(durationSec > 0 ? durationSec : 100);
     playBtn.textContent = isPlaying ? '❚❚' : '▶';
     playBtn.classList.toggle('is-playing', isPlaying);

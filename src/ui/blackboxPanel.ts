@@ -290,6 +290,7 @@ export interface BlackboxPanelOptions {
   store: AppStore;
   map?: maplibregl.Map;
   onBlackBoxJump?: (incident: Incident, window: BlackBoxWindow, rank: number) => void;
+  onExportSchema6?: (incident: Incident, rank: number) => void;
 }
 
 export interface BlackboxPanelController {
@@ -557,6 +558,22 @@ export function createBlackboxPanel(
       btn.append(topRow, reasonEl, metaRow);
       btn.addEventListener('click', () => selectAndJump(i));
       li.append(btn);
+
+      if (options.onExportSchema6) {
+        const exportBtn = el(
+          'button',
+          'blackbox-export-btn',
+          'Exportar Recorte # schema=6 (10–20 s)',
+        );
+        exportBtn.type = 'button';
+        exportBtn.title = 'Descarregar CSV científico # schema=6 (16 s centrados neste incidente) para view3d.py / topdown.py';
+        exportBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          options.onExportSchema6?.(inc, rank);
+        });
+        li.append(exportBtn);
+      }
+
       listEl.append(li);
     }
   }

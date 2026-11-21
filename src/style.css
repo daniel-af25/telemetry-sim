@@ -371,6 +371,17 @@ body,
   color: var(--accent-cyan);
 }
 
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.lab-trigger-btn {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .mode-3d-btn {
   height: 30px;
   min-width: 44px;
@@ -891,6 +902,19 @@ body,
   cursor: not-allowed;
 }
 
+.export-schema6-btn {
+  height: 32px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.export-schema6-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .rec-btn__dot {
   width: 9px;
   height: 9px;
@@ -1278,6 +1302,32 @@ body,
   font-weight: 700;
 }
 
+.blackbox-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.blackbox-export-btn {
+  width: 100%;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  background: rgba(15, 23, 42, 0.78);
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.14s ease, border-color 0.14s ease;
+}
+
+.blackbox-export-btn:hover {
+  border-color: var(--accent-cyan);
+  background: rgba(56, 189, 248, 0.18);
+}
+
 .blackbox-empty {
   padding: 16px 8px;
   text-align: center;
@@ -1517,6 +1567,477 @@ body,
 @media (max-width: 1440px) {
   .hud-shell {
     max-width: calc(100vw - 24px);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   8. Live Engineering Lab Overlay (2D Top-Down / 3D Isometric)
+   ------------------------------------------------------------------------- */
+.lab-overlay {
+  position: absolute;
+  top: 72px;
+  bottom: 78px;
+  left: 12px;
+  right: 12px;
+  z-index: 19;
+  border-radius: var(--radius-md);
+  background: rgba(7, 12, 24, 0.96);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lab-header {
+  height: 40px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--panel-border);
+  background: rgba(12, 20, 39, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.lab-header__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.lab-mode-badge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.2);
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.lab-header__session {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lab-header__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.lab-ctx-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lab-ctx-btn {
+  height: 28px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
+.lab-close-btn {
+  height: 28px;
+  padding: 0 10px;
+  border-color: rgba(244, 63, 94, 0.45);
+  color: #fda4af;
+}
+
+.lab-close-btn:hover {
+  border-color: var(--accent-crimson);
+  background: rgba(244, 63, 94, 0.18);
+  color: #ffffff;
+}
+
+.lab-overlay__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 10px;
+  display: flex;
+}
+
+.lab-card {
+  background: rgba(12, 20, 39, 0.85);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lab-card__header {
+  height: 26px;
+  padding: 0 9px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.lab-card__title {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lab-card__meta {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  white-space: nowrap;
+}
+
+.lab-canvas-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lab-canvas-wrap--scrub {
+  cursor: ew-resize;
+}
+
+.lab-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 2D Top-Down Lab Grid (60% Left / 40% Right) */
+.topdown-lab {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 10px;
+}
+
+.topdown-lab__left {
+  display: grid;
+  grid-template-rows: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.topdown-lab__right {
+  display: grid;
+  grid-template-rows: minmax(0, 1.15fr) minmax(0, 1fr) 128px;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.topdown-lab__mini-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Shared Driver Input Bars (input_bars.py style) */
+.lab-inputs-body {
+  flex: 1 1 auto;
+  padding: 8px 12px;
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  min-height: 0;
+}
+
+.lab-pedals {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.lab-pedal {
+  width: 38px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.lab-pedal__val {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.lab-pedal__track {
+  position: relative;
+  flex: 1 1 auto;
+  width: 18px;
+  min-height: 44px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  overflow: hidden;
+}
+
+.lab-pedal__fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 2px;
+}
+
+.lab-bar-fill--throttle {
+  background: var(--accent-emerald);
+}
+
+.lab-bar-fill--brake {
+  background: var(--accent-crimson);
+}
+
+.lab-pedal__label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.lab-steer {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lab-steer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lab-steer__label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.lab-steer__val {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--accent-cyan);
+}
+
+.lab-steer__track {
+  position: relative;
+  height: 16px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  overflow: hidden;
+}
+
+.lab-steer__zero {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-50%);
+  background: rgba(248, 250, 252, 0.55);
+  z-index: 2;
+}
+
+.lab-steer__fill {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: 50%;
+  width: 0%;
+  background: var(--accent-cyan);
+  z-index: 1;
+}
+
+.lab-steer__ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+/* 3D Isometric Lab Layout (~74% Stage / ~26% HUD) */
+.view3d-lab {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 292px;
+  gap: 10px;
+}
+
+.view3d-lab__stage {
+  position: relative;
+  cursor: grab;
+}
+
+.view3d-lab__stage:active {
+  cursor: grabbing;
+}
+
+.view3d-lab__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.view3d-lab__hint {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(10, 17, 34, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.view3d-lab__hud {
+  padding: 12px;
+  gap: 8px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+}
+
+.view3d-hud__title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.25;
+}
+
+.view3d-hud__sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent-cyan);
+}
+
+.view3d-hud__stats {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(7, 12, 24, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.view3d-hud__line {
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
+.view3d-hud__note {
+  font-size: 10px;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.view3d-hud__wheels {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(7, 12, 24, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.view3d-hud__wheel-row {
+  font-size: 11px;
+  font-weight: 700;
+  white-space: pre;
+}
+
+.view3d-hud__legend {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(7, 12, 24, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.view3d-hud__legend-scale {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.view3d-hud__legend-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.view3d-hud__legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.view3d-hud__inputs {
+  margin-top: auto;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(7, 12, 24, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  min-height: 96px;
+}
+
+@media (max-width: 1200px) {
+  .topdown-lab {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+
+  .view3d-lab {
+    grid-template-columns: 1fr 252px;
   }
 }
 
