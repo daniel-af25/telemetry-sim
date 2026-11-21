@@ -15,6 +15,7 @@ import {
   type BlackboxPanelController,
 } from './ui/blackboxPanel.ts';
 import { createControlsBar } from './ui/controlsBar.ts';
+import { createHudCanvas } from './ui/hudCanvas.ts';
 import { createMapView, type BasemapMode } from './ui/mapView.ts';
 import { createThreeVehicleLayer } from './ui/threeLayer.ts';
 import {
@@ -336,6 +337,12 @@ blackboxPanel = createBlackboxPanel({
   },
 });
 
+// 5c. 60 FPS HiDPI Canvas Telemetry HUD (Dual Asymmetric G-G, 4-wheel Fz, 5 Pillars, Extra Sparkline)
+const hudCanvas = createHudCanvas({
+  container: appRoot,
+  initialCollapsed: true,
+});
+
 // Single 60 FPS hot path driven by master PlaybackClock
 clock.onTick((tSec, frame) => {
   const rawDt = tSec - lastTickSec;
@@ -354,6 +361,7 @@ clock.onTick((tSec, frame) => {
     mapView.updateVehiclePose(frame);
   }
   controls.updatePlaybackFrame(tSec, frame);
+  hudCanvas.updateFrame(tSec, frame);
 
   // Sync play button icon and auto-finalize recording when track reaches the end
   if (!clock.isPlaying() && tSec >= clock.getDurationSec() && clock.getDurationSec() > 0) {
@@ -408,6 +416,19 @@ function applyPrimaryTrack(payload: ProcessedTrackPayload): void {
 
   blackboxPanel?.setIncidents(payload.incidents);
   controls.setBlackBoxWindow(null);
+  hudCanvas.setSessionData({
+    sessionId: payload.sessionVehicleMeta?.sessionId ?? null,
+    driverName: payload.sessionVehicleMeta?.driver ?? null,
+    vehicleName: payload.vehicleSpecs.name,
+    metadata: payload.metadata,
+    vehicleSpecs: payload.vehicleSpecs,
+    kammLimits: payload.kammLimits,
+    pillars: payload.pillars,
+    summary: payload.summary,
+    track: payload.track,
+    extraChannels: payload.extraChannels,
+    ...(payload.extraChannelSeries ? { extraChannelSeries: payload.extraChannelSeries } : {}),
+  });
 
   const resumeTime = shouldFit
     ? 0
